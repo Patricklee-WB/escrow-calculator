@@ -12,7 +12,9 @@
   .container { max-width: 1600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.1); padding: 28px; }
   h1 { font-size: 22px; margin-bottom: 20px; font-weight: 700; }
 
-  .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .header-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; margin-bottom: 20px; align-items: end; }
+  .btn-swap { background: none; border: 1px solid #ccc; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 18px; color: #666; transition: all .15s; margin-bottom: 2px; }
+  .btn-swap:hover { border-color: #1a73e8; color: #1a73e8; }
   .header-grid label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; }
   .header-grid input { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
 
@@ -100,7 +102,7 @@
 
   /* Read-only mode (shared link) */
   body.readonly .btn-add, body.readonly .btn-del, body.readonly .btn-link,
-  body.readonly .btn-apply, body.readonly .btn-save, body.readonly .btn-reset, body.readonly .fee-settings,
+  body.readonly .btn-apply, body.readonly .btn-save, body.readonly .btn-reset, body.readonly .btn-swap, body.readonly .fee-settings,
   body.readonly .note, body.readonly .save-msg, body.readonly #linkMsg,
   body.readonly .tabs { display: none !important; }
   body.readonly .header-grid input,
@@ -142,6 +144,7 @@
       <label>가상자산 전송인</label>
       <input type="text" id="sender" placeholder="전송인명 입력">
     </div>
+    <button class="btn-swap" onclick="var a=document.getElementById('sender'),b=document.getElementById('receiver'),t=a.value;a.value=b.value;b.value=t;" title="전송인 ↔ 수취인 전환">⇄</button>
     <div>
       <label>가상자산 수취인</label>
       <input type="text" id="receiver" placeholder="수취인명 입력">
