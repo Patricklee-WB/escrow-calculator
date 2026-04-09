@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에스크로 수수료 계산기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f5f5f5; color: #222; padding: 24px; font-size: 14px; }
+  .container { max-width: 1600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.1); padding: 28px; }
+  h1 { font-size: 22px; margin-bottom: 20px; font-weight: 700; }
+
+  .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .header-grid label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; }
+  .header-grid input { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; align-items: center; }
+  .tab-btn { padding: 10px 24px; border: 1px solid #ccc; border-bottom: none; border-radius: 6px 6px 0 0; background: #eee; cursor: pointer; font-size: 14px; font-weight: 600; color: #555; transition: background .15s; }
+  .tab-btn.active { background: #fff; color: #1a73e8; border-color: #1a73e8; border-bottom: 2px solid #fff; position: relative; z-index: 1; }
+  .tab-panel { display: none; border: 1px solid #ddd; border-radius: 0 8px 8px 8px; padding: 20px; margin-top: -1px; }
+  .tab-panel.active { display: block; }
+
+  .warning-banner { background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 4px; padding: 8px 14px; margin-bottom: 16px; font-size: 13px; display: none; }
+  .warning-banner.show { display: block; }
+
+  .fee-settings { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; background: #f8f9fa; border-radius: 6px; }
+  .fee-settings label { font-size: 13px; color: #444; font-weight: 600; }
+  .fee-settings input[type="number"] { width: 80px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; text-align: right; font-size: 13px; }
+  .fee-settings input[type="text"] { width: 80px; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; text-align: center; font-size: 13px; }
+  .fee-settings .total-rate { font-weight: 700; color: #1a73e8; font-size: 14px; }
+  .btn-apply { background: #5f6368; color: #fff; padding: 5px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn-apply:hover { background: #444; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f0f4f8; color: #333; font-weight: 700; padding: 8px 4px; border: 1px solid #ddd; text-align: center; white-space: nowrap; font-size: 11px; }
+  th.rate-col { background: #e8edf3; }
+  td { padding: 4px 5px; border: 1px solid #ddd; text-align: right; vertical-align: middle; white-space: nowrap; }
+  td.center { text-align: center; }
+
+  td input[type="text"], td input[type="number"] {
+    width: 100%; padding: 3px 5px; border: 1px solid #ddd; border-radius: 3px;
+    text-align: right; font-size: 12px; background: #fafbfc;
+  }
+  td input[type="date"] {
+    width: 130px; padding: 3px 4px; border: 1px solid #ddd; border-radius: 3px;
+    font-size: 12px; background: #fafbfc;
+  }
+  td input.rate-input {
+    width: 58px; padding: 3px 4px; border: 1px solid #c8d0e0; border-radius: 3px;
+    text-align: right; font-size: 12px; background: #f0f4ff;
+  }
+  td input.rate-input:focus { background: #fff; border-color: #1a73e8; }
+  td input.exchange-input {
+    width: 70px; padding: 3px 4px; border: 1px solid #ddd; border-radius: 3px;
+    font-size: 12px; background: #fafbfc; text-align: center;
+  }
+  td select {
+    width: 100%; padding: 3px 2px; border: 1px solid #ddd; border-radius: 3px;
+    font-size: 11px; background: #fafbfc; cursor: pointer;
+  }
+  td input:focus, td select:focus { outline: none; border-color: #1a73e8; background: #fff; }
+
+  /* 기준가 확정 체크박스 */
+  td .confirm-wrap { display: flex; align-items: center; gap: 3px; }
+  td .confirm-cb { width: 14px; height: 14px; margin: 0; cursor: pointer; flex-shrink: 0; accent-color: #34a853; }
+  input.unconfirmed { background: #fff8e1 !important; color: #bf360c !important; border-color: #ffb74d !important; }
+  tr.subtotal-row { background: #e8f0fe; font-weight: 600; }
+  tr.total-row { background: #e3e8ef; font-weight: 700; font-size: 13px; }
+  tr.total-row td { padding: 8px 5px; border-top: 2px solid #999; }
+
+  .verification-ok { color: #2e7d32; font-weight: 700; }
+  .verification-fail { color: #d32f2f; font-weight: 700; }
+
+  .btn { padding: 8px 18px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background .15s; }
+  .btn-add { background: #1a73e8; color: #fff; margin-top: 12px; }
+  .btn-add:hover { background: #1557b0; }
+  .btn-del {
+    background: none; border: none; cursor: pointer; padding: 2px;
+    color: #bbb; transition: color .15s; display: flex; align-items: center; justify-content: center;
+  }
+  .btn-del:hover { color: #d32f2f; }
+  .btn-del svg { pointer-events: none; }
+  .btn-download { background: #34a853; color: #fff; padding: 10px 24px; font-size: 14px; margin-top: 20px; }
+  .btn-download:hover { background: #2d8f47; }
+  .tab-spacer { flex: 1; }
+  .btn-save { background: #fff; color: #555; padding: 6px 16px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; }
+  .btn-save:hover { background: #f0f0f0; border-color: #999; }
+  .save-msg { font-size: 12px; color: #888; margin-left: 8px; }
+  .btn-reset { background: #fff; color: #555; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; margin-left: 4px; }
+  .btn-reset:hover { color: #d32f2f; border-color: #d32f2f; }
+  .btn-link { background: #1a73e8; color: #fff; padding: 10px 24px; font-size: 14px; margin-top: 20px; }
+  .btn-link:hover { background: #1557b0; }
+  .actions { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+
+  .red-text { color: #d32f2f; }
+  .note { font-size: 12px; color: #888; margin-top: 6px; }
+
+  /* Read-only mode (shared link) */
+  body.readonly .btn-add, body.readonly .btn-del, body.readonly .btn-link,
+  body.readonly .btn-apply, body.readonly .btn-save, body.readonly .btn-reset, body.readonly .fee-settings,
+  body.readonly .note, body.readonly .save-msg, body.readonly #linkMsg,
+  body.readonly .tabs { display: none !important; }
+  body.readonly .header-grid input,
+  body.readonly td input, body.readonly td select {
+    pointer-events: none; border-color: transparent; background: transparent;
+  }
+  body.readonly td .confirm-cb { display: none; }
+  body.readonly td input.unconfirmed { background: #fff8e1 !important; color: #bf360c !important; border-color: #ffb74d !important; }
+  body.readonly .readonly-banner {
+    display: block !important; background: #e8f0fe; color: #1a73e8; border: 1px solid #b8d4fe;
+    border-radius: 4px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; font-weight: 600;
+  }
+  .readonly-banner { display: none; }
+
+  @media print {
+    body { background: #fff; padding: 0; font-size: 10px; }
+    .container { box-shadow: none; padding: 0; }
+    .btn, .btn-add, .btn-del, .btn-download, .btn-apply, .actions { display: none !important; }
+    .tab-panel { display: block !important; border: none; padding: 0; page-break-inside: avoid; }
+    .tabs { display: none; }
+    td input, td select { border: none; padding: 0; background: transparent; font-size: 10px; }
+    td input[type="date"] { -webkit-appearance: none; }
+    .fee-settings { background: #f0f0f0; }
+    table { font-size: 10px; }
+    th { background: #e0e0e0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th.rate-col { background: #d8dce3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr.total-row { background: #e0e0e0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr.subtotal-row { background: #e8f0fe !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    input.unconfirmed { background: #fff8e1 !important; color: #bf360c !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>에스크로 수수료 계산기</h1>
+
+  <div class="header-grid">
+    <div>
+      <label>가상자산 전송인</label>
+      <input type="text" id="sender" placeholder="전송인명 입력">
+    </div>
+    <div>
+      <label>가상자산 수취인</label>
+      <input type="text" id="receiver" placeholder="수취인명 입력">
+    </div>
+  </div>
+
+  <div class="readonly-banner">공유된 문서입니다 (읽기 전용) — xlsx 다운로드만 가능합니다</div>
+  <div class="warning-banner" id="warningBanner">* 노란색 기준가는 예상 수치이며 확정된 가격이 아닙니다</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('A')">Type A: 암호화폐 → KRW</button>
+    <button class="tab-btn" onclick="switchTab('B')">Type B: KRW → 암호화폐 (거래대금 고정)</button>
+    <button class="tab-btn" onclick="switchTab('C')">Type C: KRW → 암호화폐 (수량 고정)</button>
+    <span class="tab-spacer"></span>
+    <button class="btn-save" onclick="saveToLocal()">저장</button>
+    <span id="saveMsg" class="save-msg"></span>
+    <button class="btn-reset" onclick="resetAll()">초기화</button>
+  </div>
+
+  <!-- Shared datalist for exchanges -->
+  <datalist id="exchangeList">
+    <option value="빗썸"><option value="업비트"><option value="코인원"><option value="코빗">
+    <option value="바이낸스"><option value="크라켄"><option value="OKX"><option value="Bybit">
+  </datalist>
+  <datalist id="cryptoList">
+    <option value="USDT"><option value="USDC"><option value="BTC"><option value="ETH"><option value="SOL">
+  </datalist>
+
+  <!-- ═══ Type A ═══ -->
+  <div class="tab-panel active" id="panelA">
+    <div class="fee-settings">
+      <label>거래 가상자산
+        <input type="text" id="cryptoUnitA" value="USDC" list="cryptoList" oninput="updateAssetHeadersA()">
+      </label>
+      <label>에스크로율 (%)
+        <input type="number" id="escrowRateA" value="1.00" step="0.01" min="0">
+      </label>
+      <label>매매율 (%)
+        <input type="number" id="tradeRateA" value="1.00" step="0.01" min="0">
+      </label>
+      <button class="btn-apply" onclick="applyRatesA()">전체 행 적용</button>
+      <span class="note">행별 수수료율 개별 편집 가능</span>
+    </div>
+
+    <div class="table-wrap">
+    <table id="tableA">
+      <thead>
+        <tr>
+          <th style="width:32px">No</th>
+          <th>거래일</th>
+          <th>기준거래소</th>
+          <th>기준가시간</th>
+          <th>거래금액<br>(<span class="asset-a">USDC</span>)</th>
+          <th class="rate-col">에스크로<br>율(%)</th>
+          <th class="rate-col">매매<br>율(%)</th>
+          <th>총수수료율</th>
+          <th>총수수료금액</th>
+          <th>에스크로수수료</th>
+          <th>수수료차감<span class="asset-a">USDC</span><br>(에스크로)</th>
+          <th>매매수수료</th>
+          <th>수수료차감<span class="asset-a">USDC</span><br>(전체)</th>
+          <th>기준가<br>(<span class="asset-a">USDC</span>/KRW)</th>
+          <th>원화수령액</th>
+          <th style="width:70px">검증</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody id="tbodyA"></tbody>
+      <tfoot>
+        <tr class="total-row" id="totalRowA">
+          <td colspan="4" style="text-align:center">합계</td>
+          <td id="sumAmtA">-</td>
+          <td id="sumAvgEscrowRateA" class="center">-</td>
+          <td id="sumAvgTradeRateA" class="center">-</td>
+          <td id="sumAvgTotalRateA" class="center">-</td>
+          <td id="sumTotalFeeA">-</td>
+          <td id="sumEscrowFeeA">-</td>
+          <td id="sumAfterEscrowA">-</td>
+          <td id="sumTradeFeeA">-</td>
+          <td id="sumAfterAllA">-</td>
+          <td>-</td>
+          <td id="sumKrwA">-</td>
+          <td>-</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    <button class="btn btn-add" onclick="addRowA()">+ 행 추가</button>
+  </div>
+
+  <!-- ═══ Type B ═══ -->
+  <div class="tab-panel" id="panelB">
+    <div class="fee-settings">
+      <label>코인 단위
+        <input type="text" id="coinUnit" value="ETH" list="cryptoList" oninput="updateCoinHeaders()">
+      </label>
+      <label>거래수수료율 (%)
+        <input type="number" id="tradeRateB" value="1.00" step="0.01" min="0">
+      </label>
+      <label>에스크로율 (%)
+        <input type="number" id="escrowRateB" value="1.00" step="0.01" min="0">
+      </label>
+      <button class="btn-apply" onclick="applyRatesB()">전체 행 적용</button>
+      <span class="note">행별 수수료율 개별 편집 가능</span>
+    </div>
+
+    <div class="table-wrap">
+    <table id="tableB">
+      <thead>
+        <tr>
+          <th style="width:32px">No</th>
+          <th>거래일</th>
+          <th>기준거래소</th>
+          <th>기준가시간</th>
+          <th>거래대금<br>(KRW)</th>
+          <th>기준가<br>(<span class="coin-header">ETH</span>/KRW)</th>
+          <th>코인수량</th>
+          <th class="rate-col">거래수수료<br>율(%)</th>
+          <th>거래수수료</th>
+          <th>WB Prime<br>입금액</th>
+          <th class="rate-col">에스크로<br>율(%)</th>
+          <th>에스크로수수료</th>
+          <th>출금가능금액</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody id="tbodyB"></tbody>
+      <tfoot>
+        <tr class="total-row" id="totalRowB">
+          <td colspan="4" style="text-align:center">합계</td>
+          <td id="sumKrwAmtB">-</td>
+          <td>-</td>
+          <td id="sumCoinQtyB">-</td>
+          <td id="sumAvgTradeRateB" class="center">-</td>
+          <td id="sumTradeFeeB">-</td>
+          <td id="sumWbPrimeB">-</td>
+          <td id="sumAvgEscrowRateB" class="center">-</td>
+          <td id="sumEscrowFeeB">-</td>
+          <td id="sumWithdrawB">-</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    <button class="btn btn-add" onclick="addRowB()">+ 행 추가</button>
+  </div>
+
+  <!-- ═══ Type C ═══ -->
+  <div class="tab-panel" id="panelC">
+    <div class="fee-settings">
+      <label>코인 단위
+        <input type="text" id="coinUnitC" value="ETH" list="cryptoList" oninput="updateCoinHeadersC()">
+      </label>
+      <label>거래수수료율 (%)
+        <input type="number" id="tradeRateC" value="1.00" step="0.01" min="0">
+      </label>
+      <label>에스크로율 (%)
+        <input type="number" id="escrowRateC" value="1.00" step="0.01" min="0">
+      </label>
+      <button class="btn-apply" onclick="applyRatesC()">전체 행 적용</button>
+      <span class="note">행별 수수료율 개별 편집 가능</span>
+    </div>
+
+    <div class="table-wrap">
+    <table id="tableC">
+      <thead>
+        <tr>
+          <th style="width:32px">No</th>
+          <th>거래일</th>
+          <th>기준거래소</th>
+          <th>기준가시간</th>
+          <th>목표수량<br>(<span class="asset-c">ETH</span>)</th>
+          <th>기준가<br>(<span class="asset-c">ETH</span>/KRW)</th>
+          <th>필요거래대금<br>(KRW)</th>
+          <th>코인수량</th>
+          <th class="rate-col">거래수수료<br>율(%)</th>
+          <th>거래수수료</th>
+          <th>WB Prime<br>입금액</th>
+          <th class="rate-col">에스크로<br>율(%)</th>
+          <th>에스크로수수료</th>
+          <th>출금가능금액<br>(검증)</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody id="tbodyC"></tbody>
+      <tfoot>
+        <tr class="total-row" id="totalRowC">
+          <td colspan="4" style="text-align:center">합계</td>
+          <td id="sumTargetC">-</td>
+          <td>-</td>
+          <td id="sumKrwNeededC">-</td>
+          <td id="sumCoinQtyC">-</td>
+          <td id="sumAvgTradeRateC" class="center">-</td>
+          <td id="sumTradeFeeC">-</td>
+          <td id="sumWbPrimeC">-</td>
+          <td id="sumAvgEscrowRateC" class="center">-</td>
+          <td id="sumEscrowFeeC">-</td>
+          <td id="sumWithdrawC">-</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    <button class="btn btn-add" onclick="addRowC()">+ 행 추가</button>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-download" onclick="downloadXlsx()">xlsx 다운로드</button>
+    <button class="btn btn-link" onclick="copyShareLink()">링크 복사</button>
+    <span id="linkMsg" style="font-size:12px;color:#34a853;display:none">클립보드에 복사됨</span>
+  </div>
+  <p class="note" style="margin-top:6px">* 링크 공유는 이 HTML 파일을 웹서버에 호스팅한 경우에만 동작합니다 (로컬 file:// 경로는 타인 접근 불가)</p>
+</div>
+
+<script>
+/* ── Globals ── */
+let activeTab = 'A';
+let rowCountA = 0, rowCountB = 0, rowCountC = 0;
+
+const TRASH_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+
+/* Generate time options: 전일 종가 + 30min intervals, default 당일 10:00 */
+function buildTimeOptions() {
+  let h = '<option value="전일 종가">전일 종가</option>';
+  for (let hr = 0; hr < 24; hr++) {
+    for (let mn = 0; mn < 60; mn += 30) {
+      const t = String(hr).padStart(2,'0') + ':' + String(mn).padStart(2,'0');
+      const sel = (hr === 10 && mn === 0) ? ' selected' : '';
+      h += '<option value="당일 ' + t + '"' + sel + '>당일 ' + t + '</option>';
+    }
+  }
+  return h;
+}
+const TIME_OPTIONS = buildTimeOptions();
+
+/* ── Formatters ── */
+const STABLECOINS = ['USDC','USDT','DAI','BUSD','TUSD','USDP','PYUSD'];
+function isStable(unit) { return STABLECOINS.includes((unit||'').toUpperCase()); }
+function truncFloor(n, dec) { const f = Math.pow(10, dec); return Math.floor(n * f) / f; }
+
+function fmtKRW(n) { return (n == null || isNaN(n)) ? '-' : Math.floor(n).toLocaleString('ko-KR'); }
+function fmtCrypto(n, unit) {
+  if (n == null || isNaN(n)) return '-';
+  if (isStable(unit)) { const v = truncFloor(n,2); return v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  return n.toLocaleString('en-US',{minimumFractionDigits:6,maximumFractionDigits:6});
+}
+function fmtRate(n) { return (n == null || isNaN(n)) ? '-' : n.toFixed(2) + '%'; }
+function parseNum(v) { return v ? parseFloat(String(v).replace(/,/g,'')) : NaN; }
+
+/* ── Thousand-separator live formatting ── */
+function fmtInput(el) {
+  const pos = el.selectionStart;
+  const old = el.value;
+  let dBefore = 0;
+  for (let i = 0; i < pos; i++) { if (old[i] !== ',') dBefore++; }
+  let raw = old.replace(/,/g,'');
+  const dot = raw.indexOf('.');
+  let intP = dot >= 0 ? raw.substring(0,dot) : raw;
+  const decP = dot >= 0 ? raw.substring(dot) : '';
+  intP = intP.replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  el.value = intP + decP;
+  let cnt = 0, np = el.value.length;
+  for (let i = 0; i < el.value.length; i++) {
+    if (el.value[i] !== ',') cnt++;
+    if (cnt >= dBefore) { np = i + 1; break; }
+  }
+  el.setSelectionRange(np,np);
+}
+
+/* ── Tab ── */
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active',
+    (i===0&&tab==='A')||(i===1&&tab==='B')||(i===2&&tab==='C')));
+  ['panelA','panelB','panelC'].forEach(id =>
+    document.getElementById(id).classList.toggle('active', id==='panel'+tab));
+  updateWarning();
+}
+
+function updateWarning() {
+  let has = false;
+  const cls = activeTab==='A'?'.a-confirm':activeTab==='B'?'.b-confirm':'.c-confirm';
+  document.querySelectorAll(cls).forEach(cb => { if (!cb.checked) has = true; });
+  document.getElementById('warningBanner').classList.toggle('show', has);
+}
+
+/* ── Asset headers ── */
+function updateAssetHeadersA() {
+  const u = document.getElementById('cryptoUnitA').value || 'USDC';
+  document.querySelectorAll('.asset-a').forEach(el => el.textContent = u);
+}
+function updateCoinHeaders() {
+  const u = document.getElementById('coinUnit').value || 'ETH';
+  document.querySelectorAll('.coin-header').forEach(el => el.textContent = u);
+}
+function updateCoinHeadersC() {
+  const u = document.getElementById('coinUnitC').value || 'ETH';
+  document.querySelectorAll('.asset-c').forEach(el => el.textContent = u);
+}
+
+/* ── Apply rates to all rows ── */
+function applyRatesA() {
+  const er = document.getElementById('escrowRateA').value;
+  const tr2 = document.getElementById('tradeRateA').value;
+  document.querySelectorAll('#tbodyA tr[data-row]').forEach(tr => {
+    tr.querySelector('.a-escrowRate').value = er;
+    tr.querySelector('.a-tradeRate').value = tr2;
+  });
+  calcTypeA();
+}
+function applyRatesB() {
+  const tr2 = document.getElementById('tradeRateB').value;
+  const er = document.getElementById('escrowRateB').value;
+  document.querySelectorAll('#tbodyB tr[data-row]').forEach(tr => {
+    tr.querySelector('.b-tradeRate').value = tr2;
+    tr.querySelector('.b-escrowRate').value = er;
+  });
+  calcTypeB();
+}
+function applyRatesC() {
+  const tr2 = document.getElementById('tradeRateC').value;
+  const er = document.getElementById('escrowRateC').value;
+  document.querySelectorAll('#tbodyC tr[data-row]').forEach(tr => {
+    tr.querySelector('.c-tradeRate').value = tr2;
+    tr.querySelector('.c-escrowRate').value = er;
+  });
+  calcTypeC();
+}
+
+/* ══════════════════════════════════════
+   TYPE A
+   ══════════════════════════════════════ */
+function addRowA() {
+  rowCountA++;
+  const defE = document.getElementById('escrowRateA').value;
+  const defT = document.getElementById('tradeRateA').value;
+  const tr = document.createElement('tr');
+  tr.dataset.row = rowCountA;
+  tr.innerHTML =
+    '<td class="center">' + rowCountA + '</td>' +
+    '<td><input type="date" class="a-date" min="2000-01-01" max="9999-12-31"></td>' +
+    '<td><input type="text" class="exchange-input a-exchange" list="exchangeList" value="빗썸"></td>' +
+    '<td><select class="a-time">' + TIME_OPTIONS + '</select></td>' +
+    '<td><input type="text" class="a-amount" placeholder="0" oninput="fmtInput(this);calcTypeA()"></td>' +
+    '<td><input type="number" class="rate-input a-escrowRate" value="' + defE + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
+    '<td><input type="number" class="rate-input a-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
+    '<td class="a-totalRate center">-</td>' +
+    '<td class="a-totalFee">-</td>' +
+    '<td class="a-escrowFee">-</td>' +
+    '<td class="a-afterEscrow">-</td>' +
+    '<td class="a-tradeFee">-</td>' +
+    '<td class="a-afterAll">-</td>' +
+    '<td><div class="confirm-wrap"><input type="checkbox" class="confirm-cb a-confirm" onchange="calcTypeA()" title="기준가 확정"><input type="text" class="a-price" placeholder="0" oninput="fmtInput(this);calcTypeA()"></div></td>' +
+    '<td class="a-krw">-</td>' +
+    '<td class="a-verify center">-</td>' +
+    '<td class="center"><button class="btn-del" onclick="this.closest(\'tr\').remove();renumberA();calcTypeA();">' + TRASH_SVG + '</button></td>';
+  document.getElementById('tbodyA').appendChild(tr);
+  calcTypeA();
+}
+
+function renumberA() {
+  let i = 1;
+  document.querySelectorAll('#tbodyA tr[data-row]').forEach(tr => { tr.dataset.row = i; tr.children[0].textContent = i; i++; });
+  rowCountA = i - 1;
+}
+
+function calcTypeA() {
+  const unit = document.getElementById('cryptoUnitA').value || 'USDC';
+  let sumAmt=0, sumTotalFee=0, sumEscrowFee=0, sumAfterEscrow=0;
+  let sumTradeFee=0, sumAfterAll=0, sumKrw=0;
+
+  document.querySelectorAll('#tbodyA tr[data-row]').forEach(tr => {
+    const amount = parseNum(tr.querySelector('.a-amount').value);
+    const price = parseNum(tr.querySelector('.a-price').value);
+    const escrowRate = parseFloat(tr.querySelector('.a-escrowRate').value) || 0;
+    const tradeRate = parseFloat(tr.querySelector('.a-tradeRate').value) || 0;
+    const totalRate = escrowRate + tradeRate;
+    const confirmed = tr.querySelector('.a-confirm').checked;
+    tr.querySelector('.a-price').classList.toggle('unconfirmed', !confirmed);
+    tr.querySelector('.a-totalRate').textContent = fmtRate(totalRate);
+
+    if (isNaN(amount) || amount === 0) {
+      ['.a-totalFee','.a-escrowFee','.a-afterEscrow','.a-tradeFee','.a-afterAll','.a-krw'].forEach(s => tr.querySelector(s).textContent = '-');
+      const v = tr.querySelector('.a-verify'); v.textContent = '-'; v.className = 'a-verify center';
+      return;
+    }
+
+    const totalFee = amount * totalRate / 100;
+    const escrowFee = amount * escrowRate / 100;
+    const afterEscrow = amount - escrowFee;
+    const tradeFee = amount * tradeRate / 100;
+    const afterAll = amount - totalFee;
+    const krw = (!isNaN(price) && price > 0) ? afterAll * price : NaN;
+
+    tr.querySelector('.a-totalFee').textContent = fmtCrypto(totalFee, unit);
+    tr.querySelector('.a-escrowFee').textContent = fmtCrypto(escrowFee, unit);
+    tr.querySelector('.a-afterEscrow').textContent = fmtCrypto(afterEscrow, unit);
+    tr.querySelector('.a-tradeFee').textContent = fmtCrypto(tradeFee, unit);
+    tr.querySelector('.a-afterAll').textContent = fmtCrypto(afterAll, unit);
+    tr.querySelector('.a-krw').textContent = !isNaN(krw) ? fmtKRW(krw) : '-';
+
+    const vSum = escrowFee + tradeFee;
+    const vTd = tr.querySelector('.a-verify');
+    vTd.textContent = fmtCrypto(vSum, unit);
+    vTd.className = Math.abs(vSum - totalFee) < 0.005 ? 'a-verify center verification-ok' : 'a-verify center verification-fail';
+
+    sumAmt += amount; sumTotalFee += totalFee; sumEscrowFee += escrowFee;
+    sumAfterEscrow += afterEscrow; sumTradeFee += tradeFee; sumAfterAll += afterAll;
+    if (!isNaN(krw)) sumKrw += krw;
+  });
+
+  document.getElementById('sumAmtA').textContent = fmtCrypto(sumAmt, unit);
+  document.getElementById('sumTotalFeeA').textContent = fmtCrypto(sumTotalFee, unit);
+  document.getElementById('sumEscrowFeeA').textContent = fmtCrypto(sumEscrowFee, unit);
+  document.getElementById('sumAfterEscrowA').textContent = fmtCrypto(sumAfterEscrow, unit);
+  document.getElementById('sumTradeFeeA').textContent = fmtCrypto(sumTradeFee, unit);
+  document.getElementById('sumAfterAllA').textContent = fmtCrypto(sumAfterAll, unit);
+  document.getElementById('sumKrwA').textContent = fmtKRW(sumKrw);
+
+  // Weighted average rates
+  if (sumAmt > 0) {
+    document.getElementById('sumAvgEscrowRateA').textContent = fmtRate(sumEscrowFee / sumAmt * 100);
+    document.getElementById('sumAvgTradeRateA').textContent = fmtRate(sumTradeFee / sumAmt * 100);
+    document.getElementById('sumAvgTotalRateA').textContent = fmtRate(sumTotalFee / sumAmt * 100);
+  } else {
+    document.getElementById('sumAvgEscrowRateA').textContent = '-';
+    document.getElementById('sumAvgTradeRateA').textContent = '-';
+    document.getElementById('sumAvgTotalRateA').textContent = '-';
+  }
+  updateWarning();
+}
+
+/* ══════════════════════════════════════
+   TYPE B
+   ══════════════════════════════════════ */
+function addRowB() {
+  rowCountB++;
+  const defT = document.getElementById('tradeRateB').value;
+  const defE = document.getElementById('escrowRateB').value;
+  const tr = document.createElement('tr');
+  tr.dataset.row = rowCountB;
+  tr.innerHTML =
+    '<td class="center">' + rowCountB + '</td>' +
+    '<td><input type="date" class="b-date" min="2000-01-01" max="9999-12-31"></td>' +
+    '<td><input type="text" class="exchange-input b-exchange" list="exchangeList" value="빗썸"></td>' +
+    '<td><select class="b-time">' + TIME_OPTIONS + '</select></td>' +
+    '<td><input type="text" class="b-krwAmt" placeholder="0" oninput="fmtInput(this);calcTypeB()"></td>' +
+    '<td><div class="confirm-wrap"><input type="checkbox" class="confirm-cb b-confirm" onchange="calcTypeB()" title="기준가 확정"><input type="text" class="b-price" placeholder="0" oninput="fmtInput(this);calcTypeB()"></div></td>' +
+    '<td class="b-coinQty">-</td>' +
+    '<td><input type="number" class="rate-input b-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeB()"></td>' +
+    '<td class="b-tradeFee">-</td>' +
+    '<td class="b-wbPrime">-</td>' +
+    '<td><input type="number" class="rate-input b-escrowRate" value="' + defE + '" step="0.01" min="0" oninput="calcTypeB()"></td>' +
+    '<td class="b-escrowFee">-</td>' +
+    '<td class="b-withdraw">-</td>' +
+    '<td class="center"><button class="btn-del" onclick="this.closest(\'tr\').remove();renumberB();calcTypeB();">' + TRASH_SVG + '</button></td>';
+  document.getElementById('tbodyB').appendChild(tr);
+  calcTypeB();
+}
+
+function renumberB() {
+  let i = 1;
+  document.querySelectorAll('#tbodyB tr[data-row]').forEach(tr => { tr.dataset.row = i; tr.children[0].textContent = i; i++; });
+  rowCountB = i - 1;
+}
+
+function calcTypeB() {
+  const unit = document.getElementById('coinUnit').value || 'ETH';
+  let sumKrwAmt=0, sumCoinQty=0, sumTradeFee=0, sumWbPrime=0, sumEscrowFee=0, sumWithdraw=0;
+
+  document.querySelectorAll('#tbodyB tr[data-row]').forEach(tr => {
+    const krwAmt = parseNum(tr.querySelector('.b-krwAmt').value);
+    const price = parseNum(tr.querySelector('.b-price').value);
+    const tradeRate = parseFloat(tr.querySelector('.b-tradeRate').value) || 0;
+    const escrowRate = parseFloat(tr.querySelector('.b-escrowRate').value) || 0;
+    const confirmed = tr.querySelector('.b-confirm').checked;
+    tr.querySelector('.b-price').classList.toggle('unconfirmed', !confirmed);
+
+    if (isNaN(krwAmt) || isNaN(price) || price === 0) {
+      ['.b-coinQty','.b-tradeFee','.b-wbPrime','.b-escrowFee','.b-withdraw'].forEach(s => tr.querySelector(s).textContent = '-');
+      return;
+    }
+
+    const coinQty = krwAmt / price;
+    const tradeFeeVal = coinQty * tradeRate / 100;
+    const wbPrime = coinQty - tradeFeeVal;
+    const escrowFeeVal = wbPrime * escrowRate / 100;
+    const withdraw = wbPrime - escrowFeeVal;
+
+    tr.querySelector('.b-coinQty').textContent = fmtCrypto(coinQty, unit);
+    tr.querySelector('.b-tradeFee').textContent = fmtCrypto(tradeFeeVal, unit);
+    tr.querySelector('.b-wbPrime').textContent = fmtCrypto(wbPrime, unit);
+    tr.querySelector('.b-escrowFee').textContent = fmtCrypto(escrowFeeVal, unit);
+    tr.querySelector('.b-withdraw').textContent = fmtCrypto(withdraw, unit);
+
+    sumKrwAmt += krwAmt; sumCoinQty += coinQty; sumTradeFee += tradeFeeVal;
+    sumWbPrime += wbPrime; sumEscrowFee += escrowFeeVal; sumWithdraw += withdraw;
+  });
+
+  document.getElementById('sumKrwAmtB').textContent = fmtKRW(sumKrwAmt);
+  document.getElementById('sumCoinQtyB').textContent = fmtCrypto(sumCoinQty, unit);
+  document.getElementById('sumTradeFeeB').textContent = fmtCrypto(sumTradeFee, unit);
+  document.getElementById('sumWbPrimeB').textContent = fmtCrypto(sumWbPrime, unit);
+  document.getElementById('sumEscrowFeeB').textContent = fmtCrypto(sumEscrowFee, unit);
+  document.getElementById('sumWithdrawB').textContent = fmtCrypto(sumWithdraw, unit);
+
+  // Weighted average rates for total row
+  if (sumCoinQty > 0) {
+    document.getElementById('sumAvgTradeRateB').textContent = fmtRate(sumTradeFee / sumCoinQty * 100);
+    document.getElementById('sumAvgEscrowRateB').textContent = fmtRate(sumEscrowFee / sumWbPrime * 100);
+  } else {
+    document.getElementById('sumAvgTradeRateB').textContent = '-';
+    document.getElementById('sumAvgEscrowRateB').textContent = '-';
+  }
+  updateWarning();
+}
+
+/* ══════════════════════════════════════
+   TYPE C — 수량 고정 역산
+   ══════════════════════════════════════ */
+function addRowC() {
+  rowCountC++;
+  const defT = document.getElementById('tradeRateC').value;
+  const defE = document.getElementById('escrowRateC').value;
+  const tr = document.createElement('tr');
+  tr.dataset.row = rowCountC;
+  tr.innerHTML =
+    '<td class="center">' + rowCountC + '</td>' +
+    '<td><input type="date" class="c-date" min="2000-01-01" max="9999-12-31"></td>' +
+    '<td><input type="text" class="exchange-input c-exchange" list="exchangeList" value="빗썸"></td>' +
+    '<td><select class="c-time">' + TIME_OPTIONS + '</select></td>' +
+    '<td><input type="text" class="c-target" placeholder="0" oninput="fmtInput(this);calcTypeC()"></td>' +
+    '<td><div class="confirm-wrap"><input type="checkbox" class="confirm-cb c-confirm" onchange="calcTypeC()" title="기준가 확정"><input type="text" class="c-price" placeholder="0" oninput="fmtInput(this);calcTypeC()"></div></td>' +
+    '<td class="c-krwNeeded">-</td>' +
+    '<td class="c-coinQty">-</td>' +
+    '<td><input type="number" class="rate-input c-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeC()"></td>' +
+    '<td class="c-tradeFee">-</td>' +
+    '<td class="c-wbPrime">-</td>' +
+    '<td><input type="number" class="rate-input c-escrowRate" value="' + defE + '" step="0.01" min="0" oninput="calcTypeC()"></td>' +
+    '<td class="c-escrowFee">-</td>' +
+    '<td class="c-withdraw center">-</td>' +
+    '<td class="center"><button class="btn-del" onclick="this.closest(\'tr\').remove();renumberC();calcTypeC();">' + TRASH_SVG + '</button></td>';
+  document.getElementById('tbodyC').appendChild(tr);
+  calcTypeC();
+}
+
+function renumberC() {
+  let i = 1;
+  document.querySelectorAll('#tbodyC tr[data-row]').forEach(tr => { tr.dataset.row = i; tr.children[0].textContent = i; i++; });
+  rowCountC = i - 1;
+}
+
+function calcTypeC() {
+  const unit = document.getElementById('coinUnitC').value || 'ETH';
+  let sumTarget=0, sumKrwNeeded=0, sumCoinQty=0, sumTradeFee=0, sumWbPrime=0, sumEscrowFee=0, sumWithdraw=0;
+
+  document.querySelectorAll('#tbodyC tr[data-row]').forEach(tr => {
+    const target = parseNum(tr.querySelector('.c-target').value);
+    const price = parseNum(tr.querySelector('.c-price').value);
+    const tradeRate = parseFloat(tr.querySelector('.c-tradeRate').value) || 0;
+    const escrowRate = parseFloat(tr.querySelector('.c-escrowRate').value) || 0;
+    const confirmed = tr.querySelector('.c-confirm').checked;
+    tr.querySelector('.c-price').classList.toggle('unconfirmed', !confirmed);
+
+    if (isNaN(target) || target === 0 || isNaN(price) || price === 0) {
+      ['.c-krwNeeded','.c-coinQty','.c-tradeFee','.c-wbPrime','.c-escrowFee'].forEach(s => tr.querySelector(s).textContent = '-');
+      const v = tr.querySelector('.c-withdraw'); v.textContent = '-'; v.className = 'c-withdraw center';
+      return;
+    }
+
+    /* 역산: 출금가능금액 = 목표수량이 되도록 필요 거래대금 계산 */
+    const krwNeeded = target / (1 - tradeRate/100) / (1 - escrowRate/100) * price;
+    const coinQty = krwNeeded / price;
+    const tradeFeeVal = coinQty * tradeRate / 100;
+    const wbPrime = coinQty - tradeFeeVal;
+    const escrowFeeVal = wbPrime * escrowRate / 100;
+    const withdraw = wbPrime - escrowFeeVal;
+
+    tr.querySelector('.c-krwNeeded').textContent = fmtKRW(krwNeeded);
+    tr.querySelector('.c-coinQty').textContent = fmtCrypto(coinQty, unit);
+    tr.querySelector('.c-tradeFee').textContent = fmtCrypto(tradeFeeVal, unit);
+    tr.querySelector('.c-wbPrime').textContent = fmtCrypto(wbPrime, unit);
+    tr.querySelector('.c-escrowFee').textContent = fmtCrypto(escrowFeeVal, unit);
+
+    /* 검증: 출금가능 ≈ 목표수량 */
+    const vTd = tr.querySelector('.c-withdraw');
+    vTd.textContent = fmtCrypto(withdraw, unit);
+    const tolerance = isStable(unit) ? 0.01 : 0.000001;
+    vTd.className = Math.abs(withdraw - target) < tolerance
+      ? 'c-withdraw center verification-ok' : 'c-withdraw center verification-fail';
+
+    sumTarget += target; sumKrwNeeded += krwNeeded; sumCoinQty += coinQty;
+    sumTradeFee += tradeFeeVal; sumWbPrime += wbPrime;
+    sumEscrowFee += escrowFeeVal; sumWithdraw += withdraw;
+  });
+
+  document.getElementById('sumTargetC').textContent = fmtCrypto(sumTarget, unit);
+  document.getElementById('sumKrwNeededC').textContent = fmtKRW(sumKrwNeeded);
+  document.getElementById('sumCoinQtyC').textContent = fmtCrypto(sumCoinQty, unit);
+  document.getElementById('sumTradeFeeC').textContent = fmtCrypto(sumTradeFee, unit);
+  document.getElementById('sumWbPrimeC').textContent = fmtCrypto(sumWbPrime, unit);
+  document.getElementById('sumEscrowFeeC').textContent = fmtCrypto(sumEscrowFee, unit);
+  document.getElementById('sumWithdrawC').textContent = fmtCrypto(sumWithdraw, unit);
+
+  if (sumCoinQty > 0) {
+    document.getElementById('sumAvgTradeRateC').textContent = fmtRate(sumTradeFee / sumCoinQty * 100);
+    document.getElementById('sumAvgEscrowRateC').textContent = fmtRate(sumEscrowFee / sumWbPrime * 100);
+  } else {
+    document.getElementById('sumAvgTradeRateC').textContent = '-';
+    document.getElementById('sumAvgEscrowRateC').textContent = '-';
+  }
+  updateWarning();
+}
+
+/* ══════════════════════════════════════
+   XLSX with live formulas + cached values
+   ══════════════════════════════════════ */
+function _c(ws,r,c,v,t,fmt){
+  const a=XLSX.utils.encode_cell({r,c});
+  if(t==='f') ws[a]={t:'n',f:v.f,v:v.v||0};
+  else if(t==='n') ws[a]={t:'n',v:v};
+  else ws[a]={t:'s',v:String(v||'')};
+  if(fmt&&ws[a]) ws[a].z=fmt;
+}
+function _bold(ws,r,c){const a=XLSX.utils.encode_cell({r,c});if(ws[a])ws[a].s={font:{bold:true}};}
+
+function downloadXlsx() {
+  const sender=document.getElementById('sender').value||'전송인';
+  const receiver=document.getElementById('receiver').value||'수취인';
+  const d=new Date();
+  const ds=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+  const wb=XLSX.utils.book_new();
+  wb.Workbook={CalcPr:{fullCalcOnLoad:true}};
+
+  if (activeTab==='A') {
+    const unit=document.getElementById('cryptoUnitA').value||'USDC';
+    const stable=isStable(unit), dec=stable?2:6;
+    const cF=stable?'#,##0.00':'#,##0.000000';
+    const W=(f)=>stable?'TRUNC('+f+','+dec+')':f;
+    const T=(n,d)=>stable?truncFloor(n,d):n;
+
+    const hdr=[
+      ['에스크로 수수료 계산서 (Type A: 암호화폐 매도)'],
+      ['가상자산 전송인: '+sender,'','가상자산 수취인: '+receiver],[],
+      ['No','거래일','기준거래소','기준가시간','거래금액('+unit+')','에스크로율(%)','매매율(%)','총수수료율','총수수료금액','에스크로수수료','수수료차감'+unit+'(에스크로)','매매수수료','수수료차감'+unit+'(전체)','기준가('+unit+'/KRW)','원화수령액','검증']
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(hdr);
+    const R0=4;
+    const rows=document.querySelectorAll('#tbodyA tr[data-row]');
+    const N=rows.length;
+
+    rows.forEach((tr,idx)=>{
+      const r=R0+idx, er=r+1;
+      const amt=parseNum(tr.querySelector('.a-amount').value)||0;
+      const eR=parseFloat(tr.querySelector('.a-escrowRate').value)||0;
+      const tR2=parseFloat(tr.querySelector('.a-tradeRate').value)||0;
+      const prc=parseNum(tr.querySelector('.a-price').value)||0;
+      const totR=eR+tR2;
+      const totFee=T(amt*totR/100,dec), escFee=T(amt*eR/100,dec);
+      const aftEsc=amt-escFee, trdFee=T(amt*tR2/100,dec);
+      const aftAll=amt-totFee, krw=Math.floor(aftAll*prc);
+      const verify=escFee+trdFee;
+
+      _c(ws,r,0,idx+1,'n');
+      _c(ws,r,1,tr.querySelector('.a-date').value,'s');
+      _c(ws,r,2,tr.querySelector('.a-exchange').value,'s');
+      _c(ws,r,3,tr.querySelector('.a-time').value,'s');
+      _c(ws,r,4,amt,'n',cF);
+      _c(ws,r,5,eR,'n','0.00');
+      _c(ws,r,6,tR2,'n','0.00');
+      _c(ws,r,7,{f:'F'+er+'+G'+er,v:totR},'f','0.00');
+      _c(ws,r,8,{f:W('E'+er+'*(F'+er+'+G'+er+')/100'),v:totFee},'f',cF);
+      _c(ws,r,9,{f:W('E'+er+'*F'+er+'/100'),v:escFee},'f',cF);
+      _c(ws,r,10,{f:'E'+er+'-J'+er,v:aftEsc},'f',cF);
+      _c(ws,r,11,{f:W('E'+er+'*G'+er+'/100'),v:trdFee},'f',cF);
+      _c(ws,r,12,{f:'E'+er+'-I'+er,v:aftAll},'f',cF);
+      _c(ws,r,13,prc,'n','#,##0');
+      _c(ws,r,14,{f:'TRUNC(M'+er+'*N'+er+',0)',v:krw},'f','#,##0');
+      _c(ws,r,15,{f:'J'+er+'+L'+er,v:verify},'f',cF);
+    });
+
+    const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
+    /* Read cached sums from HTML */
+    const sAmt=parseNum(document.getElementById('sumAmtA').textContent)||0;
+    const sTotFee=parseNum(document.getElementById('sumTotalFeeA').textContent)||0;
+    const sEscFee=parseNum(document.getElementById('sumEscrowFeeA').textContent)||0;
+    const sAftEsc=parseNum(document.getElementById('sumAfterEscrowA').textContent)||0;
+    const sTrdFee=parseNum(document.getElementById('sumTradeFeeA').textContent)||0;
+    const sAftAll=parseNum(document.getElementById('sumAfterAllA').textContent)||0;
+    const sKrw=parseNum(document.getElementById('sumKrwA').textContent)||0;
+
+    _c(ws,tR,0,'합계','s');
+    _c(ws,tR,4,{f:'SUM(E'+f+':E'+l+')',v:sAmt},'f',cF);
+    _c(ws,tR,5,{f:'IF(E'+tE+'=0,0,J'+tE+'/E'+tE+'*100)',v:sAmt?sEscFee/sAmt*100:0},'f','0.00');
+    _c(ws,tR,6,{f:'IF(E'+tE+'=0,0,L'+tE+'/E'+tE+'*100)',v:sAmt?sTrdFee/sAmt*100:0},'f','0.00');
+    _c(ws,tR,7,{f:'F'+tE+'+G'+tE,v:sAmt?(sTotFee/sAmt*100):0},'f','0.00');
+    _c(ws,tR,8,{f:'SUM(I'+f+':I'+l+')',v:sTotFee},'f',cF);
+    _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sEscFee},'f',cF);
+    _c(ws,tR,10,{f:'SUM(K'+f+':K'+l+')',v:sAftEsc},'f',cF);
+    _c(ws,tR,11,{f:'SUM(L'+f+':L'+l+')',v:sTrdFee},'f',cF);
+    _c(ws,tR,12,{f:'SUM(M'+f+':M'+l+')',v:sAftAll},'f',cF);
+    _c(ws,tR,14,{f:'SUM(O'+f+':O'+l+')',v:sKrw},'f','#,##0');
+    for(let c=0;c<16;c++){_bold(ws,3,c);_bold(ws,tR,c);}
+    if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14}};
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:15}});
+    ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:10},{wch:10},{wch:10},{wch:14},{wch:14},{wch:20},{wch:14},{wch:20},{wch:14},{wch:16},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,'Type A');
+
+  } else if (activeTab==='B') {
+    const unit=document.getElementById('coinUnit').value||'ETH';
+    const stable=isStable(unit), dec=stable?2:6;
+    const cF=stable?'#,##0.00':'#,##0.000000';
+    const W=(f)=>stable?'TRUNC('+f+','+dec+')':f;
+    const T=(n,d)=>stable?truncFloor(n,d):n;
+
+    const hdr=[
+      ['에스크로 수수료 계산서 (Type B: 거래대금 고정)'],
+      ['가상자산 전송인: '+sender,'','가상자산 수취인: '+receiver],[],
+      ['No','거래일','기준거래소','기준가시간','거래대금(KRW)','기준가('+unit+'/KRW)','코인수량','거래수수료율(%)','거래수수료','WB Prime입금액','에스크로율(%)','에스크로수수료','출금가능금액']
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(hdr);
+    const R0=4;
+    const rows=document.querySelectorAll('#tbodyB tr[data-row]');
+    const N=rows.length;
+
+    rows.forEach((tr,idx)=>{
+      const r=R0+idx, er=r+1;
+      const ka=parseNum(tr.querySelector('.b-krwAmt').value)||0;
+      const bp=parseNum(tr.querySelector('.b-price').value)||0;
+      const tRate=parseFloat(tr.querySelector('.b-tradeRate').value)||0;
+      const eRate=parseFloat(tr.querySelector('.b-escrowRate').value)||0;
+      const cq=bp?ka/bp:0, tf=T(cq*tRate/100,dec);
+      const wb2=cq-tf, ef=T(wb2*eRate/100,dec), wd=wb2-ef;
+
+      _c(ws,r,0,idx+1,'n');
+      _c(ws,r,1,tr.querySelector('.b-date').value,'s');
+      _c(ws,r,2,tr.querySelector('.b-exchange').value,'s');
+      _c(ws,r,3,tr.querySelector('.b-time').value,'s');
+      _c(ws,r,4,ka,'n','#,##0');
+      _c(ws,r,5,bp,'n','#,##0');
+      _c(ws,r,6,{f:W('E'+er+'/F'+er),v:cq},'f',cF);          /* 코인수량 */
+      _c(ws,r,7,tRate,'n','0.00');                              /* 거래수수료율 */
+      _c(ws,r,8,{f:W('G'+er+'*H'+er+'/100'),v:tf},'f',cF);    /* 거래수수료 */
+      _c(ws,r,9,{f:'G'+er+'-I'+er,v:wb2},'f',cF);             /* WB Prime */
+      _c(ws,r,10,eRate,'n','0.00');                             /* 에스크로율 */
+      _c(ws,r,11,{f:W('J'+er+'*K'+er+'/100'),v:ef},'f',cF);   /* 에스크로수수료 */
+      _c(ws,r,12,{f:'J'+er+'-L'+er,v:wd},'f',cF);             /* 출금가능 */
+    });
+
+    const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
+    const sKa=parseNum(document.getElementById('sumKrwAmtB').textContent)||0;
+    const sCq=parseNum(document.getElementById('sumCoinQtyB').textContent)||0;
+    const sTf=parseNum(document.getElementById('sumTradeFeeB').textContent)||0;
+    const sWb=parseNum(document.getElementById('sumWbPrimeB').textContent)||0;
+    const sEf=parseNum(document.getElementById('sumEscrowFeeB').textContent)||0;
+    const sWd=parseNum(document.getElementById('sumWithdrawB').textContent)||0;
+
+    _c(ws,tR,0,'합계','s');
+    _c(ws,tR,4,{f:'SUM(E'+f+':E'+l+')',v:sKa},'f','#,##0');
+    _c(ws,tR,6,{f:'SUM(G'+f+':G'+l+')',v:sCq},'f',cF);
+    _c(ws,tR,7,{f:'IF(G'+tE+'=0,0,I'+tE+'/G'+tE+'*100)',v:sCq?sTf/sCq*100:0},'f','0.00');
+    _c(ws,tR,8,{f:'SUM(I'+f+':I'+l+')',v:sTf},'f',cF);
+    _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sWb},'f',cF);
+    _c(ws,tR,10,{f:'IF(J'+tE+'=0,0,L'+tE+'/J'+tE+'*100)',v:sWb?sEf/sWb*100:0},'f','0.00');
+    _c(ws,tR,11,{f:'SUM(L'+f+':L'+l+')',v:sEf},'f',cF);
+    _c(ws,tR,12,{f:'SUM(M'+f+':M'+l+')',v:sWd},'f',cF);
+    for(let c=0;c<13;c++){_bold(ws,3,c);_bold(ws,tR,c);}
+    if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14}};
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:12}});
+    ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:18},{wch:12},{wch:12},{wch:16},{wch:16},{wch:18},{wch:16},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws,'Type B');
+
+  } else {
+    const unit=document.getElementById('coinUnitC').value||'ETH';
+    const stable=isStable(unit), dec=stable?2:6;
+    const cF=stable?'#,##0.00':'#,##0.000000';
+    const W=(f)=>stable?'TRUNC('+f+','+dec+')':f;
+
+    const hdr=[
+      ['에스크로 수수료 계산서 (Type C: 수량 고정)'],
+      ['가상자산 전송인: '+sender,'','가상자산 수취인: '+receiver],[],
+      ['No','거래일','기준거래소','기준가시간','목표수량('+unit+')','기준가('+unit+'/KRW)','필요거래대금(KRW)','코인수량','거래수수료율(%)','거래수수료','WB Prime입금액','에스크로율(%)','에스크로수수료','출금가능금액(검증)']
+    ];
+    const ws=XLSX.utils.aoa_to_sheet(hdr);
+    const R0=4;
+    const rows=document.querySelectorAll('#tbodyC tr[data-row]');
+    const N=rows.length;
+
+    rows.forEach((tr,idx)=>{
+      const r=R0+idx, er=r+1;
+      const tgt=parseNum(tr.querySelector('.c-target').value)||0;
+      const bp=parseNum(tr.querySelector('.c-price').value)||0;
+      const tRate=parseFloat(tr.querySelector('.c-tradeRate').value)||0;
+      const eRate=parseFloat(tr.querySelector('.c-escrowRate').value)||0;
+      const krwN=bp?tgt/(1-tRate/100)/(1-eRate/100)*bp:0;
+      const cq=bp?krwN/bp:0, tf=cq*tRate/100, wb2=cq-tf, ef=wb2*eRate/100, wd=wb2-ef;
+
+      _c(ws,r,0,idx+1,'n');
+      _c(ws,r,1,tr.querySelector('.c-date').value,'s');
+      _c(ws,r,2,tr.querySelector('.c-exchange').value,'s');
+      _c(ws,r,3,tr.querySelector('.c-time').value,'s');
+      _c(ws,r,4,tgt,'n',cF);
+      _c(ws,r,5,bp,'n','#,##0');
+      /* 필요거래대금 = E/(1-I/100)/(1-L/100)*F */
+      _c(ws,r,6,{f:'TRUNC(E'+er+'/(1-I'+er+'/100)/(1-L'+er+'/100)*F'+er+',0)',v:Math.floor(krwN)},'f','#,##0');
+      _c(ws,r,7,{f:W('G'+er+'/F'+er),v:cq},'f',cF);           /* 코인수량 */
+      _c(ws,r,8,tRate,'n','0.00');
+      _c(ws,r,9,{f:W('H'+er+'*I'+er+'/100'),v:tf},'f',cF);     /* 거래수수료 */
+      _c(ws,r,10,{f:'H'+er+'-J'+er,v:wb2},'f',cF);             /* WB Prime */
+      _c(ws,r,11,eRate,'n','0.00');
+      _c(ws,r,12,{f:W('K'+er+'*L'+er+'/100'),v:ef},'f',cF);    /* 에스크로수수료 */
+      _c(ws,r,13,{f:'K'+er+'-M'+er,v:wd},'f',cF);              /* 출금가능(검증) */
+    });
+
+    const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
+    const sTgt=parseNum(document.getElementById('sumTargetC').textContent)||0;
+    const sKrw=parseNum(document.getElementById('sumKrwNeededC').textContent)||0;
+    const sCq=parseNum(document.getElementById('sumCoinQtyC').textContent)||0;
+    const sTf=parseNum(document.getElementById('sumTradeFeeC').textContent)||0;
+    const sWb=parseNum(document.getElementById('sumWbPrimeC').textContent)||0;
+    const sEf=parseNum(document.getElementById('sumEscrowFeeC').textContent)||0;
+    const sWd=parseNum(document.getElementById('sumWithdrawC').textContent)||0;
+
+    _c(ws,tR,0,'합계','s');
+    _c(ws,tR,4,{f:'SUM(E'+f+':E'+l+')',v:sTgt},'f',cF);
+    _c(ws,tR,6,{f:'SUM(G'+f+':G'+l+')',v:sKrw},'f','#,##0');
+    _c(ws,tR,7,{f:'SUM(H'+f+':H'+l+')',v:sCq},'f',cF);
+    _c(ws,tR,8,{f:'IF(H'+tE+'=0,0,J'+tE+'/H'+tE+'*100)',v:sCq?sTf/sCq*100:0},'f','0.00');
+    _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sTf},'f',cF);
+    _c(ws,tR,10,{f:'SUM(K'+f+':K'+l+')',v:sWb},'f',cF);
+    _c(ws,tR,11,{f:'IF(K'+tE+'=0,0,M'+tE+'/K'+tE+'*100)',v:sWb?sEf/sWb*100:0},'f','0.00');
+    _c(ws,tR,12,{f:'SUM(M'+f+':M'+l+')',v:sEf},'f',cF);
+    _c(ws,tR,13,{f:'SUM(N'+f+':N'+l+')',v:sWd},'f',cF);
+    for(let c=0;c<14;c++){_bold(ws,3,c);_bold(ws,tR,c);}
+    if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14}};
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:13}});
+    ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:18},{wch:18},{wch:16},{wch:12},{wch:16},{wch:18},{wch:12},{wch:16},{wch:18}];
+    XLSX.utils.book_append_sheet(wb,ws,'Type C');
+  }
+  XLSX.writeFile(wb,sender+'_'+receiver+'_'+ds+'_에스크로수수료.xlsx');
+}
+
+/* ══════════════════════════════════════
+   State: getState / loadState (compact)
+   A row = [date,exchange,time,amount,escrowRate,tradeRate,price,confirmed]
+   B row = [date,exchange,time,krwAmt,price,tradeRate,escrowRate,confirmed]
+   ══════════════════════════════════════ */
+function getState() {
+  const s={t:activeTab};
+  const sv=document.getElementById('sender').value;
+  const rv=document.getElementById('receiver').value;
+  if(sv)s.s=sv; if(rv)s.r=rv;
+  const ad=[];
+  document.querySelectorAll('#tbodyA tr[data-row]').forEach(tr=>{
+    ad.push([tr.querySelector('.a-date').value,tr.querySelector('.a-exchange').value,tr.querySelector('.a-time').value,tr.querySelector('.a-amount').value.replace(/,/g,''),tr.querySelector('.a-escrowRate').value,tr.querySelector('.a-tradeRate').value,tr.querySelector('.a-price').value.replace(/,/g,''),tr.querySelector('.a-confirm').checked?1:0]);
+  });
+  s.a={u:document.getElementById('cryptoUnitA').value,e:document.getElementById('escrowRateA').value,t:document.getElementById('tradeRateA').value,d:ad};
+  const bd=[];
+  document.querySelectorAll('#tbodyB tr[data-row]').forEach(tr=>{
+    bd.push([tr.querySelector('.b-date').value,tr.querySelector('.b-exchange').value,tr.querySelector('.b-time').value,tr.querySelector('.b-krwAmt').value.replace(/,/g,''),tr.querySelector('.b-price').value.replace(/,/g,''),tr.querySelector('.b-tradeRate').value,tr.querySelector('.b-escrowRate').value,tr.querySelector('.b-confirm').checked?1:0]);
+  });
+  s.b={u:document.getElementById('coinUnit').value,t:document.getElementById('tradeRateB').value,e:document.getElementById('escrowRateB').value,d:bd};
+  const cd=[];
+  document.querySelectorAll('#tbodyC tr[data-row]').forEach(tr=>{
+    cd.push([tr.querySelector('.c-date').value,tr.querySelector('.c-exchange').value,tr.querySelector('.c-time').value,tr.querySelector('.c-target').value.replace(/,/g,''),tr.querySelector('.c-price').value.replace(/,/g,''),tr.querySelector('.c-tradeRate').value,tr.querySelector('.c-escrowRate').value,tr.querySelector('.c-confirm').checked?1:0]);
+  });
+  s.c={u:document.getElementById('coinUnitC').value,t:document.getElementById('tradeRateC').value,e:document.getElementById('escrowRateC').value,d:cd};
+  return s;
+}
+function loadState(s) {
+  document.getElementById('sender').value=s.s||'';
+  document.getElementById('receiver').value=s.r||'';
+  document.getElementById('cryptoUnitA').value=(s.a&&s.a.u)||'USDC';
+  document.getElementById('escrowRateA').value=(s.a&&s.a.e)||'1.00';
+  document.getElementById('tradeRateA').value=(s.a&&s.a.t)||'1.00';
+  updateAssetHeadersA();
+  document.getElementById('tbodyA').innerHTML=''; rowCountA=0;
+  ((s.a&&s.a.d)||[]).forEach(r=>{
+    addRowA();
+    const tr=document.getElementById('tbodyA').lastElementChild;
+    tr.querySelector('.a-date').value=r[0]||'';
+    tr.querySelector('.a-exchange').value=r[1]||'빗썸';
+    tr.querySelector('.a-time').value=r[2]||'당일 10:00';
+    tr.querySelector('.a-amount').value=r[3]||'';
+    tr.querySelector('.a-escrowRate').value=r[4]||'1.00';
+    tr.querySelector('.a-tradeRate').value=r[5]||'1.00';
+    tr.querySelector('.a-price').value=r[6]||'';
+    tr.querySelector('.a-confirm').checked=!!r[7];
+    if(r[3])fmtInput(tr.querySelector('.a-amount'));
+    if(r[6])fmtInput(tr.querySelector('.a-price'));
+  });
+  if(!s.a||!s.a.d||s.a.d.length===0)addRowA();
+  calcTypeA();
+  document.getElementById('coinUnit').value=(s.b&&s.b.u)||'ETH';
+  document.getElementById('tradeRateB').value=(s.b&&s.b.t)||'1.00';
+  document.getElementById('escrowRateB').value=(s.b&&s.b.e)||'1.00';
+  updateCoinHeaders();
+  document.getElementById('tbodyB').innerHTML=''; rowCountB=0;
+  ((s.b&&s.b.d)||[]).forEach(r=>{
+    addRowB();
+    const tr=document.getElementById('tbodyB').lastElementChild;
+    tr.querySelector('.b-date').value=r[0]||'';
+    tr.querySelector('.b-exchange').value=r[1]||'빗썸';
+    tr.querySelector('.b-time').value=r[2]||'당일 10:00';
+    tr.querySelector('.b-krwAmt').value=r[3]||'';
+    tr.querySelector('.b-price').value=r[4]||'';
+    tr.querySelector('.b-tradeRate').value=r[5]||'1.00';
+    tr.querySelector('.b-escrowRate').value=r[6]||'1.00';
+    tr.querySelector('.b-confirm').checked=!!r[7];
+    if(r[3])fmtInput(tr.querySelector('.b-krwAmt'));
+    if(r[4])fmtInput(tr.querySelector('.b-price'));
+  });
+  if(!s.b||!s.b.d||s.b.d.length===0)addRowB();
+  calcTypeB();
+  /* Type C */
+  document.getElementById('coinUnitC').value=(s.c&&s.c.u)||'ETH';
+  document.getElementById('tradeRateC').value=(s.c&&s.c.t)||'1.00';
+  document.getElementById('escrowRateC').value=(s.c&&s.c.e)||'1.00';
+  updateCoinHeadersC();
+  document.getElementById('tbodyC').innerHTML=''; rowCountC=0;
+  ((s.c&&s.c.d)||[]).forEach(r=>{
+    addRowC();
+    const tr=document.getElementById('tbodyC').lastElementChild;
+    tr.querySelector('.c-date').value=r[0]||'';
+    tr.querySelector('.c-exchange').value=r[1]||'빗썸';
+    tr.querySelector('.c-time').value=r[2]||'당일 10:00';
+    tr.querySelector('.c-target').value=r[3]||'';
+    tr.querySelector('.c-price').value=r[4]||'';
+    tr.querySelector('.c-tradeRate').value=r[5]||'1.00';
+    tr.querySelector('.c-escrowRate').value=r[6]||'1.00';
+    tr.querySelector('.c-confirm').checked=!!r[7];
+    if(r[3])fmtInput(tr.querySelector('.c-target'));
+    if(r[4])fmtInput(tr.querySelector('.c-price'));
+  });
+  if(!s.c||!s.c.d||s.c.d.length===0)addRowC();
+  calcTypeC();
+  switchTab(s.t||'A');
+}
+
+/* ── Save / Load (localStorage) ── */
+const STORAGE_KEY='escrow_calc_state';
+function saveToLocal() {
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(getState()));
+  const msg=document.getElementById('saveMsg');
+  const now=new Date();
+  msg.textContent='저장 '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+}
+
+/* ── Reset ── */
+function resetAll() {
+  if (!confirm('모든 입력값을 초기화하시겠습니까?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('sender').value='';
+  document.getElementById('receiver').value='';
+  document.getElementById('cryptoUnitA').value='USDC';
+  document.getElementById('escrowRateA').value='1.00';
+  document.getElementById('tradeRateA').value='1.00';
+  updateAssetHeadersA();
+  document.getElementById('tbodyA').innerHTML=''; rowCountA=0; addRowA();
+  document.getElementById('coinUnit').value='ETH';
+  document.getElementById('tradeRateB').value='1.00';
+  document.getElementById('escrowRateB').value='1.00';
+  updateCoinHeaders();
+  document.getElementById('tbodyB').innerHTML=''; rowCountB=0; addRowB();
+  document.getElementById('coinUnitC').value='ETH';
+  document.getElementById('tradeRateC').value='1.00';
+  document.getElementById('escrowRateC').value='1.00';
+  updateCoinHeadersC();
+  document.getElementById('tbodyC').innerHTML=''; rowCountC=0; addRowC();
+  document.getElementById('saveMsg').textContent='';
+  switchTab('A');
+}
+
+/* ── Share link (URL hash) ── */
+function copyShareLink() {
+  const json=JSON.stringify(getState());
+  const encoded=LZString.compressToEncodedURIComponent(json);
+  const url=location.href.split('#')[0]+'#s='+encoded;
+  navigator.clipboard.writeText(url).then(()=>{
+    const msg=document.getElementById('linkMsg');
+    msg.style.display='inline';
+    setTimeout(()=>msg.style.display='none',3000);
+  }).catch(()=>prompt('아래 링크를 복사하세요:',url));
+}
+
+/* ── Read-only mode (shared link) ── */
+let readOnly=false;
+function enableReadOnly(){
+  readOnly=true;
+  document.body.classList.add('readonly');
+  /* 비활성 패널 완전 제거 */
+  ['panelA','panelB','panelC'].forEach(id=>{
+    if(id!=='panel'+activeTab){ const el=document.getElementById(id); if(el)el.remove(); }
+  });
+}
+
+/* ── Init ── */
+(function init(){
+  const hash=location.hash;
+  if(hash&&hash.startsWith('#s=')){
+    try{
+      const json=LZString.decompressFromEncodedURIComponent(hash.substring(3));
+      loadState(JSON.parse(json));
+      enableReadOnly();
+      return;
+    }catch(e){console.warn('State load failed:',e);}
+  }
+  /* Try localStorage */
+  try{
+    const saved=localStorage.getItem(STORAGE_KEY);
+    if(saved){loadState(JSON.parse(saved));return;}
+  }catch(e){}
+  addRowA();
+  addRowB();
+  addRowC();
+})();
+</script>
+</body>
+</html>
