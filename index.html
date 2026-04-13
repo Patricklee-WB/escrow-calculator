@@ -539,7 +539,7 @@ function calcTypeA() {
 
     const escrowFee = amount * escrowRate / 100;
     const afterEscrow = amount - escrowFee;
-    const strikePrice = (!isNaN(price) && price > 0) ? price * (1 + tradeRate / 100) : NaN;
+    const strikePrice = (!isNaN(price) && price > 0) ? price * (1 - tradeRate / 100) : NaN;
     const krw = !isNaN(strikePrice) ? Math.floor(afterEscrow * strikePrice) : NaN;
 
     tr.querySelector('.a-escrowFee').textContent = fmtCrypto(escrowFee, unit);
@@ -845,7 +845,7 @@ function downloadXlsx(mode) {
         const tR2=parseFloat(tr.querySelector('.a-tradeRate').value)||0;
         const prc=parseNum(tr.querySelector('.a-price').value)||0;
         const escFee=T(amt*eR/100,dec), aftEsc=amt-escFee;
-        const sp=prc*(1+tR2/100), krw=Math.floor(aftEsc*sp);
+        const sp=prc*(1-tR2/100), krw=Math.floor(aftEsc*sp);
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.a-date').value,'s');
         _c(ws,r,2,tr.querySelector('.a-exchange').value,'s');
@@ -856,7 +856,7 @@ function downloadXlsx(mode) {
         _c(ws,r,7,{f:W('E'+er+'*F'+er+'/100'),v:escFee},'f',cF);
         _c(ws,r,8,{f:'E'+er+'-H'+er,v:aftEsc},'f',cF);
         _c(ws,r,9,prc,'n','#,##0');
-        _c(ws,r,10,{f:'J'+er+'*(1+G'+er+'/100)',v:sp},'f','#,##0.00');
+        _c(ws,r,10,{f:'J'+er+'*(1-G'+er+'/100)',v:sp},'f','#,##0.00');
         _c(ws,r,11,{f:'TRUNC(I'+er+'*K'+er+',0)',v:krw},'f','#,##0');
         _c(ws,r,12,{f:'TRUNC(I'+er+'*K'+er+',0)',v:krw},'f','#,##0');
       });
