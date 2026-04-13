@@ -200,10 +200,10 @@
           <th>기준가시간</th>
           <th>거래금액<br>(<span class="asset-a">USDC</span>)</th>
           <th class="rate-col">에스크로<br>율(%)</th>
-          <th class="rate-col col-client">매매<br>율(%)</th>
           <th>에스크로수수료</th>
           <th>수수료차감<span class="asset-a">USDC</span></th>
           <th class="col-client">기준가<br>(<span class="asset-a">USDC</span>/KRW)</th>
+          <th class="rate-col col-client">매매<br>율(%)</th>
           <th class="col-client">체결가<br>(<span class="asset-a">USDC</span>/KRW)</th>
           <th class="col-client">원화수령액</th>
           <th class="col-client" style="width:70px">검증</th>
@@ -216,10 +216,10 @@
           <td colspan="4" style="text-align:center">합계</td>
           <td id="sumAmtA">-</td>
           <td id="sumAvgEscrowRateA" class="center">-</td>
-          <td id="sumAvgTradeRateA" class="center col-client">-</td>
           <td id="sumEscrowFeeA">-</td>
           <td id="sumAfterEscrowA">-</td>
           <td class="col-client">-</td>
+          <td id="sumAvgTradeRateA" class="center col-client">-</td>
           <td class="col-client">-</td>
           <td id="sumKrwA" class="col-client">-</td>
           <td class="col-client">-</td>
@@ -500,10 +500,10 @@ function addRowA() {
     '<td><select class="a-time">' + TIME_OPTIONS + '</select></td>' +
     '<td><input type="text" class="a-amount" placeholder="0" oninput="fmtInput(this);calcTypeA()" onblur="fmtStableAmount(this,\'cryptoUnitA\')"></td>' +
     '<td><input type="number" class="rate-input a-escrowRate" value="' + defE + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
-    '<td class="col-client"><input type="number" class="rate-input a-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
     '<td class="a-escrowFee">-</td>' +
     '<td class="a-afterEscrow">-</td>' +
     '<td class="col-client"><div class="confirm-wrap"><input type="checkbox" class="confirm-cb a-confirm" onchange="calcTypeA()" title="기준가 확정"><input type="text" class="a-price" placeholder="0" oninput="fmtInput(this);calcTypeA()"></div></td>' +
+    '<td class="col-client"><input type="number" class="rate-input a-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
     '<td class="a-strikePrice col-client">-</td>' +
     '<td class="a-krw col-client">-</td>' +
     '<td class="a-verify center col-client">-</td>' +
@@ -834,7 +834,7 @@ function downloadXlsx(mode) {
       const hdr=[
         ['에스크로 수수료 계산서 (Type A: 암호화폐 매도)'],
         ['가상자산 전송인: '+sender,'','가상자산 수취인: '+receiver],[],
-        ['No','거래일','기준거래소','기준가시간','거래금액('+unit+')','에스크로율(%)','매매율(%)','에스크로수수료','수수료차감'+unit,'기준가('+unit+'/KRW)','체결가('+unit+'/KRW)','원화수령액','검증']
+        ['No','거래일','기준거래소','기준가시간','거래금액('+unit+')','에스크로율(%)','에스크로수수료','수수료차감'+unit,'기준가('+unit+'/KRW)','매매율(%)','체결가('+unit+'/KRW)','원화수령액','검증']
       ];
       const ws=XLSX.utils.aoa_to_sheet(hdr);
       const R0=4;
@@ -852,13 +852,13 @@ function downloadXlsx(mode) {
         _c(ws,r,3,tr.querySelector('.a-time').value,'s');
         _c(ws,r,4,amt,'n',cF);
         _c(ws,r,5,eR,'n','0.00');
-        _c(ws,r,6,tR2,'n','0.00');
-        _c(ws,r,7,{f:W('E'+er+'*F'+er+'/100'),v:escFee},'f',cF);
-        _c(ws,r,8,{f:'E'+er+'-H'+er,v:aftEsc},'f',cF);
-        _c(ws,r,9,prc,'n','#,##0');
-        _c(ws,r,10,{f:'J'+er+'*(1-G'+er+'/100)',v:sp},'f','#,##0.00');
-        _c(ws,r,11,{f:'TRUNC(I'+er+'*K'+er+',0)',v:krw},'f','#,##0');
-        _c(ws,r,12,{f:'TRUNC(I'+er+'*K'+er+',0)',v:krw},'f','#,##0');
+        _c(ws,r,6,{f:W('E'+er+'*F'+er+'/100'),v:escFee},'f',cF);
+        _c(ws,r,7,{f:'E'+er+'-G'+er,v:aftEsc},'f',cF);
+        _c(ws,r,8,prc,'n','#,##0');
+        _c(ws,r,9,tR2,'n','0.00');
+        _c(ws,r,10,{f:'I'+er+'*(1-J'+er+'/100)',v:sp},'f','#,##0.00');
+        _c(ws,r,11,{f:'TRUNC(H'+er+'*K'+er+',0)',v:krw},'f','#,##0');
+        _c(ws,r,12,{f:'TRUNC(H'+er+'*K'+er+',0)',v:krw},'f','#,##0');
       });
       const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
       const sAmt=parseNum(document.getElementById('sumAmtA').textContent)||0;
@@ -867,15 +867,15 @@ function downloadXlsx(mode) {
       const sKrw=parseNum(document.getElementById('sumKrwA').textContent)||0;
       _c(ws,tR,0,'합계','s');
       _c(ws,tR,4,{f:'SUM(E'+f+':E'+l+')',v:sAmt},'f',cF);
-      _c(ws,tR,5,{f:'IF(E'+tE+'=0,0,H'+tE+'/E'+tE+'*100)',v:sAmt?sEscFee/sAmt*100:0},'f','0.00');
-      _c(ws,tR,6,{f:'IF(E'+tE+'=0,0,SUMPRODUCT(E'+f+':E'+l+',G'+f+':G'+l+')/E'+tE+')',v:0},'f','0.00');
-      _c(ws,tR,7,{f:'SUM(H'+f+':H'+l+')',v:sEscFee},'f',cF);
-      _c(ws,tR,8,{f:'SUM(I'+f+':I'+l+')',v:sAftEsc},'f',cF);
+      _c(ws,tR,5,{f:'IF(E'+tE+'=0,0,G'+tE+'/E'+tE+'*100)',v:sAmt?sEscFee/sAmt*100:0},'f','0.00');
+      _c(ws,tR,6,{f:'SUM(G'+f+':G'+l+')',v:sEscFee},'f',cF);
+      _c(ws,tR,7,{f:'SUM(H'+f+':H'+l+')',v:sAftEsc},'f',cF);
+      _c(ws,tR,9,{f:'IF(E'+tE+'=0,0,SUMPRODUCT(E'+f+':E'+l+',J'+f+':J'+l+')/E'+tE+')',v:0},'f','0.00');
       _c(ws,tR,11,{f:'SUM(L'+f+':L'+l+')',v:sKrw},'f','#,##0');
       for(let c=0;c<13;c++){_bold(ws,3,c);_bold(ws,tR,c);}
       if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14}};
       ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:12}});
-      ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:10},{wch:10},{wch:14},{wch:20},{wch:14},{wch:14},{wch:16},{wch:14}];
+      ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:10},{wch:14},{wch:20},{wch:14},{wch:10},{wch:14},{wch:16},{wch:14}];
       XLSX.utils.book_append_sheet(wb,ws,'Type A');
     }
 
