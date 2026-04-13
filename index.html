@@ -348,8 +348,8 @@
   </div>
 
   <div class="actions">
-    <button class="btn btn-download col-client" onclick="downloadXlsx('client')">xlsx (고객용)</button>
-    <button class="btn btn-download" onclick="downloadXlsx('internal')">xlsx (내부용)</button>
+    <button id="btnXlsxClient" class="btn btn-download" onclick="downloadXlsx('client')">xlsx (고객용)</button>
+    <button id="btnXlsxInternal" class="btn btn-download" onclick="downloadXlsx('internal')">xlsx (내부용)</button>
     <button class="btn btn-link" onclick="copyShareLink('client')">링크 복사 (고객용)</button>
     <button class="btn btn-link" onclick="copyShareLink('internal')">링크 복사 (내부용)</button>
     <span id="linkMsg" style="font-size:12px;color:#34a853;display:none">클립보드에 복사됨</span>
@@ -1232,7 +1232,7 @@ function copyShareLink(mode) {
   const json=JSON.stringify(getState());
   const encoded=LZString.compressToEncodedURIComponent(json);
   const base=location.href.split('#')[0].split('?')[0];
-  const query = mode==='internal' ? '?mode=internal' : '';
+  const query = mode==='internal' ? '?mode=internal' : '?mode=customer';
   const url=base+query+'#s='+encoded;
   navigator.clipboard.writeText(url).then(()=>{
     const msg=document.getElementById('linkMsg');
@@ -1243,10 +1243,15 @@ function copyShareLink(mode) {
 
 /* ── Read-only mode (shared link) ── */
 let readOnly=false;
-function enableReadOnly(isInternal){
+function enableReadOnly(mode){
   readOnly=true;
   document.body.classList.add('readonly');
-  if(isInternal) document.body.classList.add('internal');
+  if(mode==='internal') document.body.classList.add('internal');
+  /* 읽기전용: xlsx 버튼 1개만 표시 */
+  const cBtn=document.getElementById('btnXlsxClient');
+  const iBtn=document.getElementById('btnXlsxInternal');
+  if(mode==='internal'){ if(cBtn)cBtn.remove(); if(iBtn)iBtn.textContent='xlsx 다운로드'; }
+  else { if(iBtn)iBtn.remove(); if(cBtn)cBtn.textContent='xlsx 다운로드'; }
   /* 비활성 패널 완전 제거 */
   ['panelA','panelB','panelC'].forEach(id=>{
     if(id!=='panel'+activeTab){ const el=document.getElementById(id); if(el)el.remove(); }
@@ -1261,7 +1266,7 @@ function enableReadOnly(isInternal){
       const json=LZString.decompressFromEncodedURIComponent(hash.substring(3));
       loadState(JSON.parse(json));
       const params=new URLSearchParams(location.search);
-      enableReadOnly(params.get('mode')==='internal');
+      enableReadOnly(params.get('mode')==='internal'?'internal':'customer');
       return;
     }catch(e){console.warn('State load failed:',e);}
   }
