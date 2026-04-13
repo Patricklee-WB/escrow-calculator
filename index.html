@@ -392,6 +392,18 @@ function fmtCrypto(n, unit) {
 function fmtRate(n) { return (n == null || isNaN(n)) ? '-' : n.toFixed(2) + '%'; }
 function parseNum(v) { return v ? parseFloat(String(v).replace(/,/g,'')) : NaN; }
 
+/* ── Stable-coin decimal enforcement ── */
+function fmtStableAmount(el, unitId) {
+  const unit = document.getElementById(unitId).value || '';
+  if (!isStable(unit)) return;
+  let v = el.value.replace(/,/g, '');
+  if (!v || isNaN(parseFloat(v))) return;
+  const n = truncFloor(parseFloat(v), 2);
+  const parts = n.toFixed(2).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  el.value = parts.join('.');
+}
+
 /* ── Thousand-separator live formatting ── */
 function fmtInput(el) {
   const pos = el.selectionStart;
@@ -486,7 +498,7 @@ function addRowA() {
     '<td><input type="date" class="a-date" min="2000-01-01" max="9999-12-31"></td>' +
     '<td><input type="text" class="exchange-input a-exchange" list="exchangeList" value="빗썸"></td>' +
     '<td><select class="a-time">' + TIME_OPTIONS + '</select></td>' +
-    '<td><input type="text" class="a-amount" placeholder="0" oninput="fmtInput(this);calcTypeA()"></td>' +
+    '<td><input type="text" class="a-amount" placeholder="0" oninput="fmtInput(this);calcTypeA()" onblur="fmtStableAmount(this,\'cryptoUnitA\')"></td>' +
     '<td><input type="number" class="rate-input a-escrowRate" value="' + defE + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
     '<td class="col-client"><input type="number" class="rate-input a-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeA()"></td>' +
     '<td class="a-escrowFee">-</td>' +
@@ -1130,7 +1142,7 @@ function loadState(s) {
     tr.querySelector('.a-tradeRate').value=r[5]||'1.00';
     tr.querySelector('.a-price').value=r[6]||'';
     tr.querySelector('.a-confirm').checked=!!r[7];
-    if(r[3])fmtInput(tr.querySelector('.a-amount'));
+    if(r[3]){fmtInput(tr.querySelector('.a-amount'));fmtStableAmount(tr.querySelector('.a-amount'),'cryptoUnitA');}
     if(r[6])fmtInput(tr.querySelector('.a-price'));
   });
   if(!s.a||!s.a.d||s.a.d.length===0)addRowA();
