@@ -294,7 +294,7 @@
       <label>코인 단위
         <input type="text" id="coinUnitC" value="ETH" list="cryptoList" oninput="updateCoinHeadersC()">
       </label>
-      <label>거래수수료율 (%)
+      <label>매매율 (%)
         <input type="number" id="tradeRateC" value="1.00" step="0.01" min="0">
       </label>
       <label>에스크로율 (%)
@@ -314,13 +314,12 @@
           <th>기준가시간</th>
           <th>목표수량<br>(<span class="asset-c">ETH</span>)</th>
           <th>기준가<br>(<span class="asset-c">ETH</span>/KRW)</th>
-          <th>필요거래대금<br>(KRW)</th>
-          <th>코인수량</th>
-          <th class="rate-col col-client">거래수수료<br>율(%)</th>
-          <th class="col-client">거래수수료</th>
-          <th class="col-client">WB Prime<br>입금액</th>
+          <th class="rate-col col-client">매매<br>율(%)</th>
+          <th class="col-client">체결가</th>
           <th class="rate-col">에스크로<br>율(%)</th>
           <th>에스크로수수료</th>
+          <th class="col-client">WB Prime<br>입금액</th>
+          <th>필요거래대금<br>(KRW)</th>
           <th>출금가능금액<br>(검증)</th>
           <th style="width:30px"></th>
         </tr>
@@ -331,13 +330,12 @@
           <td colspan="4" style="text-align:center">합계</td>
           <td id="sumTargetC">-</td>
           <td>-</td>
-          <td id="sumKrwNeededC">-</td>
-          <td id="sumCoinQtyC">-</td>
           <td id="sumAvgTradeRateC" class="center col-client">-</td>
-          <td id="sumTradeFeeC" class="col-client">-</td>
-          <td id="sumWbPrimeC" class="col-client">-</td>
+          <td class="col-client">-</td>
           <td id="sumAvgEscrowRateC" class="center">-</td>
           <td id="sumEscrowFeeC">-</td>
+          <td id="sumWbPrimeC" class="col-client">-</td>
+          <td id="sumKrwNeededC">-</td>
           <td id="sumWithdrawC">-</td>
           <td></td>
         </tr>
@@ -681,13 +679,12 @@ function addRowC() {
     '<td><select class="c-time">' + TIME_OPTIONS + '</select></td>' +
     '<td><input type="text" class="c-target" placeholder="0" oninput="fmtInput(this);calcTypeC()"></td>' +
     '<td><div class="confirm-wrap"><input type="checkbox" class="confirm-cb c-confirm" onchange="calcTypeC()" title="기준가 확정"><input type="text" class="c-price" placeholder="0" oninput="fmtInput(this);calcTypeC()"></div></td>' +
-    '<td class="c-krwNeeded">-</td>' +
-    '<td class="c-coinQty">-</td>' +
     '<td class="col-client"><input type="number" class="rate-input c-tradeRate" value="' + defT + '" step="0.01" min="0" oninput="calcTypeC()"></td>' +
-    '<td class="c-tradeFee col-client">-</td>' +
-    '<td class="c-wbPrime col-client">-</td>' +
+    '<td class="c-strikePrice col-client">-</td>' +
     '<td><input type="number" class="rate-input c-escrowRate" value="' + defE + '" step="0.01" min="0" oninput="calcTypeC()"></td>' +
     '<td class="c-escrowFee">-</td>' +
+    '<td class="c-wbPrime col-client">-</td>' +
+    '<td class="c-krwNeeded">-</td>' +
     '<td class="c-withdraw center">-</td>' +
     '<td class="center"><button class="btn-del" onclick="this.closest(\'tr\').remove();renumberC();calcTypeC();">' + TRASH_SVG + '</button></td>';
   document.getElementById('tbodyC').appendChild(tr);
@@ -702,7 +699,8 @@ function renumberC() {
 
 function calcTypeC() {
   const unit = document.getElementById('coinUnitC').value || 'ETH';
-  let sumTarget=0, sumKrwNeeded=0, sumCoinQty=0, sumTradeFee=0, sumWbPrime=0, sumEscrowFee=0, sumWithdraw=0;
+  let sumTarget=0, sumKrwNeeded=0, sumWbPrime=0, sumEscrowFee=0, sumWithdraw=0;
+  let sumWeightedTradeRate=0, sumWeightedEscrowRate=0;
 
   document.querySelectorAll('#tbodyC tr[data-row]').forEach(tr => {
     const target = parseNum(tr.querySelector('.c-target').value);
@@ -713,24 +711,26 @@ function calcTypeC() {
     tr.querySelector('.c-price').classList.toggle('unconfirmed', !confirmed);
 
     if (isNaN(target) || target === 0 || isNaN(price) || price === 0) {
-      ['.c-krwNeeded','.c-coinQty','.c-tradeFee','.c-wbPrime','.c-escrowFee'].forEach(s => tr.querySelector(s).textContent = '-');
+      ['.c-strikePrice','.c-escrowFee','.c-wbPrime','.c-krwNeeded'].forEach(s => tr.querySelector(s).textContent = '-');
       const v = tr.querySelector('.c-withdraw'); v.textContent = '-'; v.className = 'c-withdraw center';
       return;
     }
 
-    /* 역산: 출금가능금액 = 목표수량이 되도록 필요 거래대금 계산 */
-    const krwNeeded = target / (1 - tradeRate/100) / (1 - escrowRate/100) * price;
-    const coinQty = krwNeeded / price;
-    const tradeFeeVal = coinQty * tradeRate / 100;
-    const wbPrime = coinQty - tradeFeeVal;
-    const escrowFeeVal = wbPrime * escrowRate / 100;
-    const withdraw = wbPrime - escrowFeeVal;
+    /* 체결가 = 기준가 × (1 + 매매율/100) */
+    const strikePrice = price * (1 + tradeRate / 100);
+    /* 에스크로수수료 = 목표수량 × 에스크로율/100 */
+    const escrowFeeVal = target * escrowRate / 100;
+    /* WB Prime입금액 = 목표수량 */
+    const wbPrime = target;
+    /* 필요거래대금(KRW) = (목표수량 + 에스크로수수료) × 체결가 */
+    const krwNeeded = (target + escrowFeeVal) * strikePrice;
+    /* 출금가능금액 = 목표수량 (검증) */
+    const withdraw = wbPrime;
 
-    tr.querySelector('.c-krwNeeded').textContent = fmtKRW(krwNeeded);
-    tr.querySelector('.c-coinQty').textContent = fmtCrypto(coinQty, unit);
-    tr.querySelector('.c-tradeFee').textContent = fmtCrypto(tradeFeeVal, unit);
-    tr.querySelector('.c-wbPrime').textContent = fmtCrypto(wbPrime, unit);
+    tr.querySelector('.c-strikePrice').textContent = fmtKRW(strikePrice);
     tr.querySelector('.c-escrowFee').textContent = fmtCrypto(escrowFeeVal, unit);
+    tr.querySelector('.c-wbPrime').textContent = fmtCrypto(wbPrime, unit);
+    tr.querySelector('.c-krwNeeded').textContent = fmtKRW(krwNeeded);
 
     /* 검증: 출금가능 ≈ 목표수량 */
     const vTd = tr.querySelector('.c-withdraw');
@@ -739,22 +739,21 @@ function calcTypeC() {
     vTd.className = Math.abs(withdraw - target) < tolerance
       ? 'c-withdraw center verification-ok' : 'c-withdraw center verification-fail';
 
-    sumTarget += target; sumKrwNeeded += krwNeeded; sumCoinQty += coinQty;
-    sumTradeFee += tradeFeeVal; sumWbPrime += wbPrime;
-    sumEscrowFee += escrowFeeVal; sumWithdraw += withdraw;
+    sumTarget += target; sumKrwNeeded += krwNeeded;
+    sumWbPrime += wbPrime; sumEscrowFee += escrowFeeVal; sumWithdraw += withdraw;
+    sumWeightedTradeRate += target * tradeRate;
+    sumWeightedEscrowRate += target * escrowRate;
   });
 
   document.getElementById('sumTargetC').textContent = fmtCrypto(sumTarget, unit);
   document.getElementById('sumKrwNeededC').textContent = fmtKRW(sumKrwNeeded);
-  document.getElementById('sumCoinQtyC').textContent = fmtCrypto(sumCoinQty, unit);
-  document.getElementById('sumTradeFeeC').textContent = fmtCrypto(sumTradeFee, unit);
   document.getElementById('sumWbPrimeC').textContent = fmtCrypto(sumWbPrime, unit);
   document.getElementById('sumEscrowFeeC').textContent = fmtCrypto(sumEscrowFee, unit);
   document.getElementById('sumWithdrawC').textContent = fmtCrypto(sumWithdraw, unit);
 
-  if (sumCoinQty > 0) {
-    document.getElementById('sumAvgTradeRateC').textContent = fmtRate(sumTradeFee / sumCoinQty * 100);
-    document.getElementById('sumAvgEscrowRateC').textContent = fmtRate(sumEscrowFee / sumWbPrime * 100);
+  if (sumTarget > 0) {
+    document.getElementById('sumAvgTradeRateC').textContent = fmtRate(sumWeightedTradeRate / sumTarget);
+    document.getElementById('sumAvgEscrowRateC').textContent = fmtRate(sumWeightedEscrowRate / sumTarget);
   } else {
     document.getElementById('sumAvgTradeRateC').textContent = '-';
     document.getElementById('sumAvgEscrowRateC').textContent = '-';
@@ -995,7 +994,7 @@ function downloadXlsx(mode) {
       const hdr=[
         ['에스크로 수수료 계산서 (Type C: 수량 고정) — 내부용'],
         ['가상자산 전송인: '+sender,'','가상자산 수취인: '+receiver],[],
-        ['No','거래일','기준거래소','기준가시간','목표수량('+unit+')','기준가('+unit+'/KRW)','필요거래대금(KRW)','코인수량','에스크로율(%)','에스크로수수료','출금가능금액(검증)']
+        ['No','거래일','기준거래소','기준가시간','목표수량('+unit+')','기준가('+unit+'/KRW)','에스크로율(%)','에스크로수수료','필요거래대금(KRW)','출금가능금액(검증)']
       ];
       const ws=XLSX.utils.aoa_to_sheet(hdr);
       const R0=4;
@@ -1005,42 +1004,39 @@ function downloadXlsx(mode) {
         const bp=parseNum(tr.querySelector('.c-price').value)||0;
         const tRate=parseFloat(tr.querySelector('.c-tradeRate').value)||0;
         const eRate=parseFloat(tr.querySelector('.c-escrowRate').value)||0;
-        const krwN=bp?tgt/(1-tRate/100)/(1-eRate/100)*bp:0;
-        const cq=bp?krwN/bp:0, tf=cq*tRate/100, wb2=cq-tf, ef=wb2*eRate/100, wd=wb2-ef;
+        const sp=bp*(1+tRate/100);
+        const ef=tgt*eRate/100;
+        const krwN=(tgt+ef)*sp;
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.c-date').value,'s');
         _c(ws,r,2,tr.querySelector('.c-exchange').value,'s');
         _c(ws,r,3,tr.querySelector('.c-time').value,'s');
         _c(ws,r,4,tgt,'n',cF);
         _c(ws,r,5,bp,'n','#,##0');
-        _c(ws,r,6,Math.floor(krwN),'n','#,##0');
-        _c(ws,r,7,cq,'n',cF);
-        _c(ws,r,8,eRate,'n','0.00');
-        _c(ws,r,9,ef,'n',cF);
-        _c(ws,r,10,wd,'n',cF);
+        _c(ws,r,6,eRate,'n','0.00');
+        _c(ws,r,7,{f:W('E'+er+'*G'+er+'/100'),v:ef},'f',cF);
+        _c(ws,r,8,{f:'TRUNC((E'+er+'+H'+er+')*F'+er+'*(1+'+tRate+'/100),0)',v:Math.floor(krwN)},'f','#,##0');
+        _c(ws,r,9,tgt,'n',cF);
       });
       const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
       const sTgt=parseNum(document.getElementById('sumTargetC').textContent)||0;
-      const sKrw=parseNum(document.getElementById('sumKrwNeededC').textContent)||0;
-      const sCq=parseNum(document.getElementById('sumCoinQtyC').textContent)||0;
       const sEf=parseNum(document.getElementById('sumEscrowFeeC').textContent)||0;
-      const sWd=parseNum(document.getElementById('sumWithdrawC').textContent)||0;
+      const sKrw=parseNum(document.getElementById('sumKrwNeededC').textContent)||0;
       _c(ws,tR,0,'합계','s');
       _c(ws,tR,4,{f:'SUM(E'+f+':E'+l+')',v:sTgt},'f',cF);
-      _c(ws,tR,6,{f:'SUM(G'+f+':G'+l+')',v:sKrw},'f','#,##0');
-      _c(ws,tR,7,{f:'SUM(H'+f+':H'+l+')',v:sCq},'f',cF);
-      _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sEf},'f',cF);
-      _c(ws,tR,10,{f:'SUM(K'+f+':K'+l+')',v:sWd},'f',cF);
-      for(let c=0;c<11;c++){_bold(ws,3,c);_bold(ws,tR,c);}
+      _c(ws,tR,7,{f:'SUM(H'+f+':H'+l+')',v:sEf},'f',cF);
+      _c(ws,tR,8,{f:'SUM(I'+f+':I'+l+')',v:sKrw},'f','#,##0');
+      _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sTgt},'f',cF);
+      for(let c=0;c<10;c++){_bold(ws,3,c);_bold(ws,tR,c);}
       if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14}};
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:10}});
-      ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:18},{wch:18},{wch:16},{wch:12},{wch:16},{wch:18}];
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:9}});
+      ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:18},{wch:12},{wch:16},{wch:18},{wch:18}];
       XLSX.utils.book_append_sheet(wb,ws,'Type C');
     } else {
       const hdr=[
         ['에스크로 수수료 계산서 (Type C: 수량 고정)'],
         ['가상자산 전송인: '+sender,'','가상자산 수취인: '+receiver],[],
-        ['No','거래일','기준거래소','기준가시간','목표수량('+unit+')','기준가('+unit+'/KRW)','필요거래대금(KRW)','코인수량','거래수수료율(%)','거래수수료','WB Prime입금액','에스크로율(%)','에스크로수수료','출금가능금액(검증)']
+        ['No','거래일','기준거래소','기준가시간','목표수량('+unit+')','기준가('+unit+'/KRW)','매매율(%)','체결가','에스크로율(%)','에스크로수수료','WB Prime입금액','필요거래대금(KRW)','출금가능금액(검증)']
       ];
       const ws=XLSX.utils.aoa_to_sheet(hdr);
       const R0=4;
@@ -1050,45 +1046,39 @@ function downloadXlsx(mode) {
         const bp=parseNum(tr.querySelector('.c-price').value)||0;
         const tRate=parseFloat(tr.querySelector('.c-tradeRate').value)||0;
         const eRate=parseFloat(tr.querySelector('.c-escrowRate').value)||0;
-        const krwN=bp?tgt/(1-tRate/100)/(1-eRate/100)*bp:0;
-        const cq=bp?krwN/bp:0, tf=cq*tRate/100, wb2=cq-tf, ef=wb2*eRate/100, wd=wb2-ef;
+        const sp=bp*(1+tRate/100);
+        const ef=tgt*eRate/100;
+        const krwN=(tgt+ef)*sp;
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.c-date').value,'s');
         _c(ws,r,2,tr.querySelector('.c-exchange').value,'s');
         _c(ws,r,3,tr.querySelector('.c-time').value,'s');
         _c(ws,r,4,tgt,'n',cF);
         _c(ws,r,5,bp,'n','#,##0');
-        _c(ws,r,6,{f:'TRUNC(E'+er+'/(1-I'+er+'/100)/(1-L'+er+'/100)*F'+er+',0)',v:Math.floor(krwN)},'f','#,##0');
-        _c(ws,r,7,{f:W('G'+er+'/F'+er),v:cq},'f',cF);
-        _c(ws,r,8,tRate,'n','0.00');
-        _c(ws,r,9,{f:W('H'+er+'*I'+er+'/100'),v:tf},'f',cF);
-        _c(ws,r,10,{f:'H'+er+'-J'+er,v:wb2},'f',cF);
-        _c(ws,r,11,eRate,'n','0.00');
-        _c(ws,r,12,{f:W('K'+er+'*L'+er+'/100'),v:ef},'f',cF);
-        _c(ws,r,13,{f:'K'+er+'-M'+er,v:wd},'f',cF);
+        _c(ws,r,6,tRate,'n','0.00');
+        _c(ws,r,7,{f:'F'+er+'*(1+G'+er+'/100)',v:sp},'f','#,##0.00');
+        _c(ws,r,8,eRate,'n','0.00');
+        _c(ws,r,9,{f:W('E'+er+'*I'+er+'/100'),v:ef},'f',cF);
+        _c(ws,r,10,tgt,'n',cF);
+        _c(ws,r,11,{f:'TRUNC((E'+er+'+J'+er+')*H'+er+',0)',v:Math.floor(krwN)},'f','#,##0');
+        _c(ws,r,12,tgt,'n',cF);
       });
       const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
       const sTgt=parseNum(document.getElementById('sumTargetC').textContent)||0;
-      const sKrw=parseNum(document.getElementById('sumKrwNeededC').textContent)||0;
-      const sCq=parseNum(document.getElementById('sumCoinQtyC').textContent)||0;
-      const sTf=parseNum(document.getElementById('sumTradeFeeC').textContent)||0;
-      const sWb=parseNum(document.getElementById('sumWbPrimeC').textContent)||0;
       const sEf=parseNum(document.getElementById('sumEscrowFeeC').textContent)||0;
-      const sWd=parseNum(document.getElementById('sumWithdrawC').textContent)||0;
+      const sKrw=parseNum(document.getElementById('sumKrwNeededC').textContent)||0;
       _c(ws,tR,0,'합계','s');
       _c(ws,tR,4,{f:'SUM(E'+f+':E'+l+')',v:sTgt},'f',cF);
-      _c(ws,tR,6,{f:'SUM(G'+f+':G'+l+')',v:sKrw},'f','#,##0');
-      _c(ws,tR,7,{f:'SUM(H'+f+':H'+l+')',v:sCq},'f',cF);
-      _c(ws,tR,8,{f:'IF(H'+tE+'=0,0,J'+tE+'/H'+tE+'*100)',v:sCq?sTf/sCq*100:0},'f','0.00');
-      _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sTf},'f',cF);
-      _c(ws,tR,10,{f:'SUM(K'+f+':K'+l+')',v:sWb},'f',cF);
-      _c(ws,tR,11,{f:'IF(K'+tE+'=0,0,M'+tE+'/K'+tE+'*100)',v:sWb?sEf/sWb*100:0},'f','0.00');
-      _c(ws,tR,12,{f:'SUM(M'+f+':M'+l+')',v:sEf},'f',cF);
-      _c(ws,tR,13,{f:'SUM(N'+f+':N'+l+')',v:sWd},'f',cF);
-      for(let c=0;c<14;c++){_bold(ws,3,c);_bold(ws,tR,c);}
+      _c(ws,tR,6,{f:'IF(E'+tE+'=0,0,SUMPRODUCT(E'+f+':E'+l+',G'+f+':G'+l+')/E'+tE+')',v:0},'f','0.00');
+      _c(ws,tR,8,{f:'IF(E'+tE+'=0,0,SUMPRODUCT(E'+f+':E'+l+',I'+f+':I'+l+')/E'+tE+')',v:0},'f','0.00');
+      _c(ws,tR,9,{f:'SUM(J'+f+':J'+l+')',v:sEf},'f',cF);
+      _c(ws,tR,10,{f:'SUM(K'+f+':K'+l+')',v:sTgt},'f',cF);
+      _c(ws,tR,11,{f:'SUM(L'+f+':L'+l+')',v:sKrw},'f','#,##0');
+      _c(ws,tR,12,{f:'SUM(M'+f+':M'+l+')',v:sTgt},'f',cF);
+      for(let c=0;c<13;c++){_bold(ws,3,c);_bold(ws,tR,c);}
       if(ws['A1'])ws['A1'].s={font:{bold:true,sz:14}};
-      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:13}});
-      ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:18},{wch:18},{wch:16},{wch:12},{wch:16},{wch:18},{wch:12},{wch:16},{wch:18}];
+      ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tR,c:12}});
+      ws['!cols']=[{wch:5},{wch:12},{wch:10},{wch:12},{wch:16},{wch:18},{wch:10},{wch:14},{wch:10},{wch:16},{wch:18},{wch:18},{wch:18}];
       XLSX.utils.book_append_sheet(wb,ws,'Type C');
     }
   }
