@@ -889,14 +889,14 @@ function downloadXlsx(mode) {
         const r=R0+idx, er=r+1;
         const amt=parseNum(tr.querySelector('.a-amount').value)||0;
         const eR=parseFloat(tr.querySelector('.a-escrowRate').value)||0;
-        const escFee=T(amt*eR/100,dec), aftEsc=amt-escFee;
+        const escFee=amt*eR/100, aftEsc=amt-escFee;
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.a-date').value,'s');
         _c(ws,r,2,tr.querySelector('.a-exchange').value,'s');
         _c(ws,r,3,tr.querySelector('.a-time').value,'s');
         _c(ws,r,4,amt,'n',cF);
         _c(ws,r,5,eR,'n','0.00');
-        _c(ws,r,6,{f:W('E'+er+'*F'+er+'/100'),v:escFee},'f',cF);
+        _c(ws,r,6,{f:'E'+er+'*F'+er+'/100',v:escFee},'f',cF);
         _c(ws,r,7,{f:'E'+er+'-G'+er,v:aftEsc},'f',cF);
       });
       const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
@@ -928,7 +928,7 @@ function downloadXlsx(mode) {
         const eR=parseFloat(tr.querySelector('.a-escrowRate').value)||0;
         const tR2=parseFloat(tr.querySelector('.a-tradeRate').value)||0;
         const prc=parseNum(tr.querySelector('.a-price').value)||0;
-        const escFee=T(amt*eR/100,dec), aftEsc=amt-escFee;
+        const escFee=amt*eR/100, aftEsc=amt-escFee;
         const sp=prc*(1-tR2/100), krw=Math.floor(aftEsc*sp);
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.a-date').value,'s');
@@ -936,7 +936,7 @@ function downloadXlsx(mode) {
         _c(ws,r,3,tr.querySelector('.a-time').value,'s');
         _c(ws,r,4,amt,'n',cF);
         _c(ws,r,5,eR,'n','0.00');
-        _c(ws,r,6,{f:W('E'+er+'*F'+er+'/100'),v:escFee},'f',cF);
+        _c(ws,r,6,{f:'E'+er+'*F'+er+'/100',v:escFee},'f',cF);
         _c(ws,r,7,{f:'E'+er+'-G'+er,v:aftEsc},'f',cF);
         _c(ws,r,8,prc,'n','#,##0');
         _c(ws,r,9,tR2,'n','0.00');
@@ -986,15 +986,15 @@ function downloadXlsx(mode) {
         const bp=parseNum(tr.querySelector('.b-price').value)||0;
         const tRate=parseFloat(tr.querySelector('.b-tradeRate').value)||0;
         const eRate=parseFloat(tr.querySelector('.b-escrowRate').value)||0;
-        const cq=bp?ka/bp:0, tf=T(cq*tRate/100,dec);
-        const wb2=cq-tf, ef=T(wb2*eRate/100,dec), wd=wb2-ef;
+        const cq=bp?ka/bp:0, tf=cq*tRate/100;
+        const wb2=cq-tf, ef=wb2*eRate/100, wd=wb2-ef;
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.b-date').value,'s');
         _c(ws,r,2,tr.querySelector('.b-exchange').value,'s');
         _c(ws,r,3,tr.querySelector('.b-time').value,'s');
         _c(ws,r,4,ka,'n','#,##0');
         _c(ws,r,5,bp,'n','#,##0');
-        _c(ws,r,6,{f:W('E'+er+'/F'+er),v:cq},'f',cF);
+        _c(ws,r,6,{f:'E'+er+'/F'+er,v:cq},'f',cF);
         _c(ws,r,7,eRate,'n','0.00');
         _c(ws,r,8,ef,'n',cF);
         _c(ws,r,9,wd,'n',cF);
@@ -1028,20 +1028,20 @@ function downloadXlsx(mode) {
         const bp=parseNum(tr.querySelector('.b-price').value)||0;
         const tRate=parseFloat(tr.querySelector('.b-tradeRate').value)||0;
         const eRate=parseFloat(tr.querySelector('.b-escrowRate').value)||0;
-        const cq=bp?ka/bp:0, tf=T(cq*tRate/100,dec);
-        const wb2=cq-tf, ef=T(wb2*eRate/100,dec), wd=wb2-ef;
+        const cq=bp?ka/bp:0, tf=cq*tRate/100;
+        const wb2=cq-tf, ef=wb2*eRate/100, wd=wb2-ef;
         _c(ws,r,0,idx+1,'n');
         _c(ws,r,1,tr.querySelector('.b-date').value,'s');
         _c(ws,r,2,tr.querySelector('.b-exchange').value,'s');
         _c(ws,r,3,tr.querySelector('.b-time').value,'s');
         _c(ws,r,4,ka,'n','#,##0');
         _c(ws,r,5,bp,'n','#,##0');
-        _c(ws,r,6,{f:W('E'+er+'/F'+er),v:cq},'f',cF);
+        _c(ws,r,6,{f:'E'+er+'/F'+er,v:cq},'f',cF);
         _c(ws,r,7,tRate,'n','0.00');
-        _c(ws,r,8,{f:W('G'+er+'*H'+er+'/100'),v:tf},'f',cF);
+        _c(ws,r,8,{f:'G'+er+'*H'+er+'/100',v:tf},'f',cF);
         _c(ws,r,9,{f:'G'+er+'-I'+er,v:wb2},'f',cF);
         _c(ws,r,10,eRate,'n','0.00');
-        _c(ws,r,11,{f:W('J'+er+'*K'+er+'/100'),v:ef},'f',cF);
+        _c(ws,r,11,{f:'J'+er+'*K'+er+'/100',v:ef},'f',cF);
         _c(ws,r,12,{f:'J'+er+'-L'+er,v:wd},'f',cF);
       });
       const tR=R0+N,tE=tR+1,f=R0+1,l=R0+N;
@@ -1110,7 +1110,7 @@ function downloadXlsx(mode) {
           _c(ws,r,10,{f:'J'+er+'+I'+er,v:Math.floor(sr+ef)},'f','#,##0');
         }else{
           const ef=tgt*eRate/100, wd=tgt-ef;
-          _c(ws,r,7,{f:W('E'+er+'*G'+er+'/100'),v:ef},'f',cF);
+          _c(ws,r,7,{f:'E'+er+'*G'+er+'/100',v:ef},'f',cF);
           _c(ws,r,8,{f:'E'+er+'-H'+er,v:wd},'f',cF);
           _c(ws,r,9,{f:'TRUNC(E'+er+'*F'+er+'*(1+'+tRate+'/100),0)',v:Math.floor(tgt*sp)},'f','#,##0');
         }
@@ -1177,7 +1177,7 @@ function downloadXlsx(mode) {
           _c(ws,r,13,tgt,'n',cF);                                                                /* 검증 */
         }else{
           const ef=tgt*eRate/100, wd=tgt-ef;
-          _c(ws,r,9,{f:W('E'+er+'*I'+er+'/100'),v:ef},'f',cF);
+          _c(ws,r,9,{f:'E'+er+'*I'+er+'/100',v:ef},'f',cF);
           _c(ws,r,10,{f:'E'+er+'-J'+er,v:wd},'f',cF);
           _c(ws,r,11,{f:'TRUNC(E'+er+'*H'+er+',0)',v:Math.floor(tgt*sp)},'f','#,##0');
           _c(ws,r,12,wd,'n',cF);
