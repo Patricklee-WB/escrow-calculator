@@ -802,9 +802,10 @@ function calcTypeC() {
 
     let escrowFeeVal, withdraw, krwNeeded, sellerReceive;
     if (mode === 'krw') {
+      /* β 원칙: 각 KRW 셀을 원 단위로 절사한 뒤 합산 (Excel과 일치) */
       withdraw = target;
-      sellerReceive = target * strikePrice;
-      escrowFeeVal = sellerReceive * escrowRate / 100;
+      sellerReceive = Math.floor(target * strikePrice);
+      escrowFeeVal = Math.floor(target * strikePrice * escrowRate / 100);
       krwNeeded = sellerReceive + escrowFeeVal;
     } else {
       escrowFeeVal = target * escrowRate / 100;
@@ -1104,10 +1105,11 @@ function downloadXlsx(mode) {
         _c(ws,r,6,eRate,'n','0.00');
         if(modeC==='krw'){
           const sr=tgt*sp, ef=sr*eRate/100;
+          const srF=Math.floor(sr), efF=Math.floor(ef);
           _c(ws,r,7,tgt,'n',cF);
-          _c(ws,r,8,{f:'TRUNC(E'+er+'*F'+er+'*(1+'+tRate+'/100)*G'+er+'/100,0)',v:Math.floor(ef)},'f','#,##0');
-          _c(ws,r,9,{f:'TRUNC(E'+er+'*F'+er+'*(1+'+tRate+'/100),0)',v:Math.floor(sr)},'f','#,##0');
-          _c(ws,r,10,{f:'J'+er+'+I'+er,v:Math.floor(sr+ef)},'f','#,##0');
+          _c(ws,r,8,{f:'TRUNC(E'+er+'*F'+er+'*(1+'+tRate+'/100)*G'+er+'/100,0)',v:efF},'f','#,##0');
+          _c(ws,r,9,{f:'TRUNC(E'+er+'*F'+er+'*(1+'+tRate+'/100),0)',v:srF},'f','#,##0');
+          _c(ws,r,10,{f:'J'+er+'+I'+er,v:srF+efF},'f','#,##0');
         }else{
           const ef=tgt*eRate/100, wd=tgt-ef;
           _c(ws,r,7,{f:'E'+er+'*G'+er+'/100',v:ef},'f',cF);
@@ -1170,11 +1172,12 @@ function downloadXlsx(mode) {
         _c(ws,r,8,eRate,'n','0.00');
         if(modeC==='krw'){
           const sr=tgt*sp, ef=sr*eRate/100;
-          _c(ws,r,9,tgt,'n',cF);                                                                /* 출금가능금액 */
-          _c(ws,r,10,{f:'TRUNC(E'+er+'*H'+er+'*I'+er+'/100,0)',v:Math.floor(ef)},'f','#,##0');   /* 에스크로수수료 */
-          _c(ws,r,11,{f:'TRUNC(E'+er+'*H'+er+',0)',v:Math.floor(sr)},'f','#,##0');                /* 양도자수령액 */
-          _c(ws,r,12,{f:'L'+er+'+K'+er,v:Math.floor(sr+ef)},'f','#,##0');                         /* 총거래대금 */
-          _c(ws,r,13,tgt,'n',cF);                                                                /* 검증 */
+          const srF=Math.floor(sr), efF=Math.floor(ef);
+          _c(ws,r,9,tgt,'n',cF);                                                          /* 출금가능금액 */
+          _c(ws,r,10,{f:'TRUNC(E'+er+'*H'+er+'*I'+er+'/100,0)',v:efF},'f','#,##0');       /* 에스크로수수료 */
+          _c(ws,r,11,{f:'TRUNC(E'+er+'*H'+er+',0)',v:srF},'f','#,##0');                    /* 양도자수령액 */
+          _c(ws,r,12,{f:'L'+er+'+K'+er,v:srF+efF},'f','#,##0');                             /* 총거래대금 */
+          _c(ws,r,13,tgt,'n',cF);                                                          /* 검증 */
         }else{
           const ef=tgt*eRate/100, wd=tgt-ef;
           _c(ws,r,9,{f:'E'+er+'*I'+er+'/100',v:ef},'f',cF);
